@@ -15,11 +15,14 @@ logging.basicConfig(
 )
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_RAURE")
+if not TELEGRAM_TOKEN:
+    raise ValueError("❌ La variable d'entorn TELEGRAM_TOKEN_RAURE no està definida")
 
-# Definir zona horària de Madrid amb zoneinfo (no cal pytz)
+# Zona horària Madrid
 MADRID_TZ = ZoneInfo("Europe/Madrid")
 TARGET_DATE = dt(2025, 9, 28, 11, 0, 0, tzinfo=MADRID_TZ)
 
+# Missatge fix
 fixed_message_id = None
 fixed_chat_id = None
 
@@ -37,17 +40,17 @@ def generar_countdown():
             f"       ⏳ {days} dies\n"
             f"       ⏰ {hours} hores\n"
             f"       ⏱️ {minutes} minuts\n"
+            f"       ⏲️ {seconds} segons"
         )
-        message = (
+        return (
             f"🎉 <b>Ginkana de la Fira del Raure</b> 🎉\n\n"
-            f"⏳ Compte enrere fins diumenge 28 de setembre de 2025 a les 11h (hora local):\n"
+            f"⏳ Compte enrere fins diumenge 28 de setembre de 2025 a les 11h (hora Madrid):\n"
             f"{countdown}\n\n"
             f"🔗 El Bot de la Ginkana serà accessible aquí: <b>@Gi*************Bot</b>\n"
             "ℹ️ L'enllaç al JOC es mostrarà el diumenge 28 de setembre de 2025 a les 11h."
         )
     else:
-        message = generar_final()
-    return message
+        return generar_final()
 
 def generar_final():
     return (
@@ -66,10 +69,7 @@ async def countdown_task(context: ContextTypes.DEFAULT_TYPE):
     while True:
         now = dt.now(MADRID_TZ)
         remaining_seconds = (TARGET_DATE - now).total_seconds()
-        if remaining_seconds > 0:
-            message = generar_countdown()
-        else:
-            message = generar_final()
+        message = generar_countdown()
 
         try:
             await context.bot.edit_message_text(
@@ -81,10 +81,7 @@ async def countdown_task(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.warning(f"No s'ha pogut actualitzar el missatge: {e}")
 
-        if remaining_seconds <= 0:
-            break
-
-        await asyncio.sleep(60)
+        await asyncio.sleep(60)  # Actualitza cada minut
 
 # ----------------------------
 # Comandes
@@ -103,9 +100,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         fixed_message_id = sent_message.message_id
         fixed_chat_id = sent_message.chat_id
+        # Llança la tasca de countdown en background
         context.application.create_task(countdown_task(context))
 
 async def rebooom(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mostra el missatge final temporalment sense aturar el compte enrera"""
     await update.message.reply_text(
         generar_final(),
         parse_mode=constants.ParseMode.HTML
