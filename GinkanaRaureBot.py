@@ -1,64 +1,75 @@
 import logging
 import asyncio
-from datetime import datetime
+import os
+from datetime import datetime as dt
+from zoneinfo import ZoneInfo
 from telegram import Update, constants
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 # ----------------------------
-# Configuració del log
+# CONFIGURACIÓ
 # ----------------------------
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# ----------------------------
-# Variables del bot
-# ----------------------------
-TELEGRAM_TOKEN = "7914578668:AAGeqije0MbzGrdj4PGxsucRyn2hc-WcXUM"  # Substitueix pel teu token
-TARGET_DATE = datetime(2025, 9, 28, 11, 0, 0)  # Data i hora de la ginkana
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN_RAURE")
 
-# Variable global per guardar el missatge fix
+# Definir zona horària de Madrid amb zoneinfo (no cal pytz)
+MADRID_TZ = ZoneInfo("Europe/Madrid")
+TARGET_DATE = dt(2025, 9, 28, 11, 0, 0, tzinfo=MADRID_TZ)
+
 fixed_message_id = None
 fixed_chat_id = None
 
 # ----------------------------
-# Tasca de compte enrere
+# FUNCIONS COMPTE ENRERE
 # ----------------------------
+def generar_countdown():
+    now = dt.now(MADRID_TZ)
+    remaining = TARGET_DATE - now
+    if remaining.total_seconds() > 0:
+        days = remaining.days
+        hours, remainder = divmod(remaining.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        countdown = (
+            f"       ⏳ {days} dies\n"
+            f"       ⏰ {hours} hores\n"
+            f"       ⏱️ {minutes} minuts\n"
+        )
+        message = (
+            f"🎉 <b>Ginkana de la Fira del Raure</b> 🎉\n\n"
+            f"⏳ Compte enrere fins diumenge 28 de setembre de 2025 a les 11h (hora local):\n"
+            f"{countdown}\n\n"
+            f"🔗 El Bot de la Ginkana serà accessible aquí: <b>@Gi*************Bot</b>\n"
+            "ℹ️ L'enllaç al JOC es mostrarà el diumenge 28 de setembre de 2025 a les 11h."
+        )
+    else:
+        message = generar_final()
+    return message
+
+def generar_final():
+    return (
+        "🎉 <b>Ginkana de la Fira del Raure</b> 🎉\n\n"
+        "⏳ El compte enrere ha finalitzat!\n\n"
+        "🔗 El JOC de la Ginkana és: <b>@GinkanaGinestarBot</b>\n"
+        "Accediu-hi per inscriure-us i començar la Ginkana!"
+    )
+
 async def countdown_task(context: ContextTypes.DEFAULT_TYPE):
-    """
-    Actualitza el missatge fix amb el compte enrere cada minut.
-    """
     global fixed_message_id, fixed_chat_id
     if not fixed_message_id or not fixed_chat_id:
         logging.warning("❌ Missatge fix no inicialitzat")
         return
 
     while True:
-        now = datetime.now()
-        remaining = TARGET_DATE - now
-
-        if remaining.total_seconds() > 0:
-            days = remaining.days
-            hours, remainder = divmod(remaining.seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
-
-            countdown = (
-                f"<b>{days} dies</b>\n"
-                f"<b>{hours} hores</b>\n"
-                f"<b>{minutes} minuts</b>\n"
-                f"<b>{seconds} segons</b>"
-            )
+        now = dt.now(MADRID_TZ)
+        remaining_seconds = (TARGET_DATE - now).total_seconds()
+        if remaining_seconds > 0:
+            message = generar_countdown()
         else:
-            countdown = "🎉 Ja ha començat la Ginkana!"
-
-        message = (
-            "<b>🎉 Ginkana de la Fira del Raure 🎉</b>\n\n"
-            "⏳ Compte enrere fins diumenge 28 de setembre de 2025 a les 11h:\n"
-            f"{countdown}\n\n"
-            "🔗 El Bot de la Ginkana serà accessible aquí: <b>@Gi*************Bot</b>\n"
-            "ℹ️ L'enllaç al bot es mostrarà el diumenge 28 de setembre de 2025 a les 11h."
-        )
+            message = generar_final()
 
         try:
             await context.bot.edit_message_text(
@@ -70,56 +81,45 @@ async def countdown_task(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.warning(f"No s'ha pogut actualitzar el missatge: {e}")
 
-        if remaining.total_seconds() <= 0:
-            logging.info("✅ Compte enrere completat.")
+        if remaining_seconds <= 0:
             break
 
-        await asyncio.sleep(60)  # Actualitza cada minut
+        await asyncio.sleep(60)
 
 # ----------------------------
-# Comanda /start
+# Comandes
 # ----------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Envia el missatge fix si no existeix, o indica als usuaris que ja està actiu.
-    """
     global fixed_message_id, fixed_chat_id
-
-    # Si no hi ha missatge fix, en crear un
+    await update.message.reply_text(
+        "👋 Hola! Benvingut/da al Bot de la Ginkana de la Fira del Raure 2025!\n"
+        "Aquí tens el compte enrere 👇",
+        parse_mode=constants.ParseMode.HTML
+    )
     if fixed_message_id is None:
         sent_message = await update.message.reply_text(
-            "⌛ Iniciant compte enrere...",
+            generar_countdown(),
             parse_mode=constants.ParseMode.HTML
         )
         fixed_message_id = sent_message.message_id
         fixed_chat_id = sent_message.chat_id
-        logging.info(f"Missatge fix creat per @{update.effective_user.username}")
-
-        # Llança la tasca de compte enrere en segon pla
         context.application.create_task(countdown_task(context))
-    else:
-        # Ja hi ha un missatge fix
-        await update.message.reply_text(
-            "⏳ El compte enrere ja està actiu al xat!",
-            parse_mode=constants.ParseMode.HTML
-        )
-        logging.info(f"Usuari @{update.effective_user.username} ha comprovat el compte enrere")
+
+async def rebooom(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        generar_final(),
+        parse_mode=constants.ParseMode.HTML
+    )
 
 # ----------------------------
 # Main
 # ----------------------------
 def main():
-    if not TELEGRAM_TOKEN:
-        print("❌ Falta el token del bot!")
-        return
-
-    # Crear aplicació
     app = Application.builder().token(TELEGRAM_TOKEN).build()
-
-    # Afegir handler per la comanda /start
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("rebooom", rebooom))
 
-    logging.info("🚀 Bot de compte enrere amb missatge fix en marxa...")
+    logging.info("🚀 Bot de compte enrere en marxa...")
     app.run_polling()
 
 if __name__ == "__main__":
