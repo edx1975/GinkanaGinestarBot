@@ -1,0 +1,36 @@
+📚 AJUDA DE LA GRAN GINKANA DE LA FIRA DEL RAURE
+
+
+➡️ INSCRIPCIÓ
+Per participar, crea un equip i inscriu-lo amb:
+
+  /inscriure NomEquip nom1,nom2,nom3
+
+- Vigila els "espais": fixa't que només n'hi ha un entre "/inscriure" i el "NomEquip" i que no hi ha cap espai entre el nom dels jugadors, nomes una coma "," entre ells.)
+- El jugador que fa la inscripció és el Portaveu i no cal que s'afegeixi com a jugador, ja ho és per defecte.
+Només ell podrà enviar respostes.
+
+➡️ PROVES
+Responeu les primeres 10 proves del primer bloc. Per veure les proves disponibles:
+  /proves
+
+Recorda que les proves es desbloquegen de 10 en 10. N'hi han 30 en total.
+Has de contestar totes les d’un bloc per passar al següent.
+
+➡️ RESPOSTES
+Per respondre a una prova:
+  resposta <número> <resposta>
+exemple: 
+  resposta 3 1998
+(aneu alerta, perquè les respostes no es poden canviar)
+
+➡️ ESTAT
+Per veure quines proves del teu bloc encara no has contestat:
+  /manquen
+
+➡️ RANKING
+Per veure la classificació:
+  /ranking
+
+Molta sort i bona Ginkana! 🎉
+ 
