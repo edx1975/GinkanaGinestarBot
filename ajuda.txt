@@ -21,7 +21,7 @@ Has de contestar totes les d’un bloc per passar al següent.
 Per respondre a una prova:
   resposta <número> <resposta>
 exemple: 
-  resposta 3 1998
+  resposta 3 11-09-1919
 (aneu alerta, perquè les respostes no es poden canviar)
 
 ➡️ ESTAT

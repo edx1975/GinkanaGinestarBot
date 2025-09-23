@@ -125,7 +125,7 @@ def validate_answer(prova, resposta):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Benvingut a la Gran Ginkana de la Fira del Raure 2025 de Ginestar!\n\n"
-        "La Ginkana comença a les 11h i acaba a les 19h. \n"
+        "La Ginkana ha començat a les 11h i acaba a les 19h. \n"
         "Contesta els 3 blocs de 10 proves. Per desbloquejar el següent bloc, primer has d'haver contestat l'actual.\n\n"
         "📖 Comandes útils:\n"
         "/ajuda - veure menú d'ajuda\n"
