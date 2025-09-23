@@ -27,9 +27,17 @@ GINKANA_PUNTS_SHEET = os.getenv("GINKANA_PUNTS_SHEET", "punts_equips")
 # ----------------------------
 # Google Sheets
 # ----------------------------
-creds_dict = json.loads(GOOGLE_CREDS_JSON)
+import os, json
+import gspread
+
+# carregar el JSON de la variable d'entorn
+creds_dict = json.loads(os.getenv("GOOGLE_CREDS_JSON"))
+
+# connectar amb Google Sheets
 gc = gspread.service_account_from_dict(creds_dict)
-sheet = gc.open(GINKANA_PUNTS_SHEET).sheet1
+
+# obrir la fulla
+sheet = gc.open(os.getenv("GINKANA_PUNTS_SHEET")).sheet1
 
 # ----------------------------
 # Helpers CSV
