@@ -238,16 +238,21 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if not text or not text.lower().startswith("resposta"):
+        # Aquí entrem si NO és una resposta vàlida
+        await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
         return
+
     parts = text.split(maxsplit=2)
-    if len(parts)<3:
+    if len(parts) < 3:
         await update.message.reply_text("Format: resposta <id> <text>")
         return
-    prova_id,resposta = parts[1],parts[2]
+
+    prova_id, resposta = parts[1], parts[2]
     proves = carregar_proves()
     if prova_id not in proves:
         await update.message.reply_text("❌ Prova no trobada.")
         return
+
     user = update.message.from_user
     username = (user.username or "").lstrip("@").lower()
     firstname = (user.first_name or "").lower()
@@ -257,28 +262,32 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if info["portaveu"] in [username, firstname]:
             equip = e
             break
+
     if not equip:
         await update.message.reply_text("❌ Només el portaveu pot enviar respostes.")
         return
     if ja_resposta(equip, prova_id):
         await update.message.reply_text(f"⚠️ L'equip '{equip}' ja ha respost la prova {prova_id}.")
         return
+
     bloc_anterior = bloc_actual(equip, proves)
     prova = proves[prova_id]
     punts, estat = validate_answer(prova, resposta)
     guardar_submission(equip, prova_id, resposta, punts, estat)
     await update.message.reply_text(f"✅ Resposta registrada: {estat}. Punts: {punts}")
+
     bloc_nou = bloc_actual(equip, proves)
-    if bloc_nou==2 and bloc_anterior==1:
+    if bloc_nou == 2 and bloc_anterior == 1:
         await update.message.reply_text("🎺 Bloc 1 completat, aquí tens el 2!")
         await llistar_proves(update, context)
-    elif bloc_nou==3 and bloc_anterior==2:
+    elif bloc_nou == 3 and bloc_anterior == 2:
         await update.message.reply_text("🎉 Bloc 2 completat, aquí tens el 3!")
         await llistar_proves(update, context)
+
     res = respostes_equip(equip)
     if all(str(i) in res for i in range(21,31)) and "31" not in res:
         await update.message.reply_text("🎆 Queden les últimes proves! Resposta 31 per completar la ginkana.")
-    if prova["tipus"]=="final_joc":
+    if prova["tipus"] == "final_joc":
         await update.message.reply_text("🏆 Ginkana completada! /ranking per veure resultats.")
 
 # ----------------------------
