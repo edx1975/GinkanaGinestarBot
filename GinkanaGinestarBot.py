@@ -1,9 +1,12 @@
+from dotenv import load_dotenv
 import os
+load_dotenv()  # Això llegeix el .env i posa les variables a os.environ
 import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import gspread
 import json
+import csv
 
 # ----------------------------
 # Variables d'entorn
@@ -18,7 +21,6 @@ if not GOOGLE_CREDS_JSON:
     print("❌ Falta la variable d'entorn GOOGLE_CREDS_JSON")
     exit(1)
 
-# CSV de proves i equips segueix igual
 PROVES_CSV = os.getenv("GINKANA_PROVES_CSV", "./proves_ginkana.csv")
 EQUIPS_CSV = os.getenv("GINKANA_EQUIPS_CSV", "./equips.csv")
 AJUDA_TXT = os.getenv("GINKANA_AJUDA_TXT", "./ajuda.txt")
@@ -27,23 +29,26 @@ GINKANA_PUNTS_SHEET = os.getenv("GINKANA_PUNTS_SHEET", "punts_equips")
 # ----------------------------
 # Google Sheets
 # ----------------------------
-import os, json
-import gspread
+creds_dict = {
+    "type": "service_account",
+    "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+    "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("GOOGLE_PRIVATE_KEY").replace("\\n", "\n"),
+    "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
+}
 
-# carregar el JSON de la variable d'entorn
-creds_dict = json.loads(os.getenv("GOOGLE_CREDS_JSON"))
-
-# connectar amb Google Sheets
 gc = gspread.service_account_from_dict(creds_dict)
-
-# obrir la fulla
 sheet = gc.open(os.getenv("GINKANA_PUNTS_SHEET")).sheet1
+print(sheet.get_all_records())
 
 # ----------------------------
 # Helpers CSV
 # ----------------------------
-import csv
-
 def carregar_proves():
     proves = {}
     if os.path.exists(PROVES_CSV):
@@ -78,7 +83,6 @@ def guardar_equip(equip, portaveu, jugadors_llista):
 # Helpers Google Sheets
 # ----------------------------
 def guardar_submission(equip, prova_id, resposta, punts, estat):
-    # afegim nova fila al full
     sheet.append_row([equip, prova_id, resposta, punts, estat])
 
 def ja_resposta(equip, prova_id):
