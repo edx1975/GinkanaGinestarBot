@@ -230,7 +230,7 @@ async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 mancants.append(f"{pid}. {p['titol']}")
 
     if mancants:
-        msg = f"❓ Proves pendents fins al bloc {bloc}:\n\n" + "\n".join(mancants)
+        msg = f"❓ Proves pendents del bloc {bloc}:\n\n" + "\n".join(mancants)
         await update.message.reply_text(msg)
     else:
         await update.message.reply_text(f"🎉 Totes les proves del bloc {bloc} han estat contestades!")
@@ -312,7 +312,8 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🎆🎆🎆 TAA-TAA-TAA-XAAAAAN!!! 🎆🎆🎆\n\n"
             "🏁 FELICITATS!! Heu completat les 30 proves!\n\n"
-            "🏔️ Però encara queda LA PROVA DEFINITIVA: envieu la resposta 31 per completar la ginkana.")
+            "🏔️ Però encara queda LA PROVA SECRETA: envieu la resposta 31 per completar la ginkana i obtenir els 50 punts EXTRA FINALS!.\n\n"
+            "⛪️ Trobareu la resposta 31 a la façana de l'Església, però només de 19:01 a 19:02")
     if prova["tipus"] == "final_joc":
         await update.message.reply_text(
             "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
