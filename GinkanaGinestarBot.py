@@ -211,23 +211,41 @@ async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not equip:
         await update.message.reply_text("❌ Has d'estar inscrit.")
         return
+
     res = respostes_equip(equip)
+
+    # Cas especial: ja s'ha fet la 31
     if "31" in res:
-        await update.message.reply_text("🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
+        await update.message.reply_text(
+            "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
             "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025.")
+            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025."
+        )
         return
 
-    # Llistar totes les proves pendents fins al bloc actual
     bloc = bloc_actual(equip, proves)
-    rangs = [range(1,11), range(11,21), range(21,31)]
+    rangs = [range(1, 11), range(11, 21), range(21, 31)]
     mancants = []
-    for b in range(bloc):  # recorre tots els blocs fins al bloc actual
+
+    # Recorrem fins al bloc actual
+    for b in range(bloc):
         for pid in rangs[b]:
             if str(pid) not in res and str(pid) in proves:
                 p = proves[str(pid)]
                 mancants.append(f"{pid}. {p['titol']}")
+
+    # Afegim la prova 31 si cal
+    if all(str(i) in res for i in range(1, 31)) and "31" not in res and "31" in proves:
+        p = proves["31"]
+        mancants.append(f"31. {p['titol']}")
+
+        msg = (
+            "⏳ Encara us falta **LA PROVA FINAL SECRETA**! 🔑\n\n"
+            "❓ Pendent:\n" + "\n".join(mancants)
+        )
+        await update.message.reply_text(msg)
+        return
 
     if mancants:
         msg = f"❓ Proves pendents del bloc {bloc}:\n\n" + "\n".join(mancants)
@@ -235,7 +253,6 @@ async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"🎉 Totes les proves del bloc {bloc} han estat contestades!")
         await llistar_proves(update, context)
-
 
 async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     records = sheet.get_all_records()
