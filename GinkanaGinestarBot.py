@@ -186,7 +186,7 @@ async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for pid in rang:
         if str(pid) in proves:
             p = proves[str(pid)]
-            msg += f"{pid}. {p['titol']} ({p['descripcio']}) - {p['punts']} punts\n"
+            msg += f"{pid}. {p['titol']}\n{p['descripcio']} - {p['punts']} punts\n\n"
     await update.message.reply_text(msg)
 
 async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
