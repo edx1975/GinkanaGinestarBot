@@ -328,7 +328,6 @@ def main():
     app.add_handler(CommandHandler("proves", llistar_proves))
     app.add_handler(CommandHandler("manquen", manquen))
     app.add_handler(CommandHandler("ranking", ranking))
-    app.add_handler(CommandHandler("consells", consells))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
