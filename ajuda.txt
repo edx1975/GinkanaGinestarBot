@@ -9,7 +9,7 @@ Exemple:
   /inscriure EquipElsMillors JoanaArs PolBorràs CarmeCasadó 
 
 - Fixa't que no hi han espais ente les paraules de l'equip o el nom d'una mateixa persona.
-- El jugador que fa la inscripció és el Portaveu i només ell pot contestar les preguntes amb el seu compte de Telegram.
+- El jugador que fa la inscripció és el Portaveu i només ell pot contestar les preguntes de l'equip amb el seu compte de Telegram.
 
 
 ➡️ PROVES
@@ -17,7 +17,7 @@ Responeu les primeres 10 proves del primer bloc.
 Per veure les proves disponibles: 
   /proves
 
-- Recorda que les proves es desbloquegen de 10 en 10. N'hi han 30 en total.
+- Recordeu que les proves es desbloquegen de 10 en 10. N'hi han 30 en total.
 Has de contestar totes les d’un bloc per passar al següent.
 
 
@@ -30,10 +30,11 @@ Exemple:
 
 - Aneu alerta, perquè les respostes no es poden canviar. 
 - Aquesta instrucció no porta la barra inclinada "/" al davant.
+- No cal donar les respostes en un ordre concret, podeu començar per la que vulguis.
 
 
 ➡️ ESTAT
-Per veure quines proves del teu bloc encara no has contestat:
+Per veure quines proves del teu bloc encara no heu contestat:
   /manquen
 
 
