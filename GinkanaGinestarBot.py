@@ -317,9 +317,9 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if prova["tipus"] == "final_joc":
         await update.message.reply_text(
             "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
-            "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
+            "📊 Trobareu la Classificació Definitiva a la parada de Lo Margalló 🍾.\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025.")
+            "🐔 Lo Corral Associació Cultural de Ginestar, 28 de setembre de 2025. #LoCorralAC")
 
 # ----------------------------
 # Main
