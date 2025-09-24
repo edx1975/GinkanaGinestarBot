@@ -133,10 +133,18 @@ def validate_answer(prova, resposta):
 # ----------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Benvingut a la Gran Ginkana de Ginestar 2025!\n"
-        "Contesta els 3 blocs de proves.\n"
-        "Comandes: /ajuda /inscriure /proves /ranking /manquen\n"
-        "Per respondre: resposta <numero> <resposta>"
+        "👋 Benvingut a la Gran Ginkana de la Fira del Raure 2025 de Ginestar!\n\n"
+        "La Ginkana ha començat a les 11h i acaba a les 19h. \n"
+        "Contesta els 3 blocs de 10 proves. Per desbloquejar el següent bloc, primer has d'haver contestat l'actual.\n\n"
+        "📖 Comandes útils:\n"
+        "/ajuda - veure menú d'ajuda\n"
+        "/inscriure NomEquip nom1,nom2,nom3 - registrar el teu equip\n"
+        "/proves - veure llista de proves\n"
+        "/ranking - veure puntuacions\n"
+        "/manquen - veure proves pendents del teu bloc actual\n\n"
+        "📣 Per respondre una prova envia:\n"
+        "resposta <numero> <resposta>\n\n"
+        "🐔 Una iniciativa de Lo Corral associació cultural amb la col·laboració de lo Grup de Natura lo Margalló \n"
     )
 
 async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -205,7 +213,10 @@ async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     res = respostes_equip(equip)
     if "31" in res:
-        await update.message.reply_text("🏆 Heu completat la ginkana! /ranking per veure resultats.")
+        await update.message.reply_text("🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
+            "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
+            "🙌 Moltes gràcies a tots per participar!\n\n"
+            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025.")
         return
     bloc = bloc_actual(equip, proves)
     rang = {1: range(1,11),2:range(11,21),3:range(21,31)}[bloc]
@@ -278,17 +289,24 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     bloc_nou = bloc_actual(equip, proves)
     if bloc_nou == 2 and bloc_anterior == 1:
-        await update.message.reply_text("🎺 Bloc 1 completat, aquí tens el 2!")
+        await update.message.reply_text("🎺 Ta-xàn! Enhorabona, has completat el primer bloc, aquí tens el segon!")
         await llistar_proves(update, context)
     elif bloc_nou == 3 and bloc_anterior == 2:
-        await update.message.reply_text("🎉 Bloc 2 completat, aquí tens el 3!")
+        await update.message.reply_text("🎉 Ta-ta-ta-xaaaaàn! Gairebé ho teniu! Aquí teniu les últimes instruccions per al tercer bloc:")
         await llistar_proves(update, context)
 
     res = respostes_equip(equip)
     if all(str(i) in res for i in range(21,31)) and "31" not in res:
-        await update.message.reply_text("🎆 Queden les últimes proves! Resposta 31 per completar la ginkana.")
+        await update.message.reply_text(
+            "🎆🎆🎆 TAA-TAA-TAA-XAAAAAN!!! 🎆🎆🎆\n\n"
+            "🏁 FELICITATS!! Heu completat les 30 proves!\n\n"
+            "🏔️ Però encara queda LA PROVA DEFINITIVA: envieu la resposta 31 per completar la ginkana.")
     if prova["tipus"] == "final_joc":
-        await update.message.reply_text("🏆 Ginkana completada! /ranking per veure resultats.")
+        await update.message.reply_text(
+            "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
+            "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
+            "🙌 Moltes gràcies a tots per participar!\n\n"
+            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025.")
 
 # ----------------------------
 # Main
