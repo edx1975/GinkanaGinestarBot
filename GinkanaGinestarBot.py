@@ -218,11 +218,18 @@ async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🙌 Moltes gràcies a tots per participar!\n\n"
             "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025.")
         return
+
+    # Llistar totes les proves pendents fins al bloc actual
     bloc = bloc_actual(equip, proves)
-    rang = {1: range(1,11),2:range(11,21),3:range(21,31)}[bloc]
-    mancants = [str(pid) for pid in rang if str(pid) not in res and str(pid) in proves]
+    rangs = [range(1,11), range(11,21), range(21,31)]
+    mancants = []
+    for b in range(bloc):  # recorre tots els blocs fins al bloc actual
+        for pid in rangs[b]:
+            if str(pid) not in res and str(pid) in proves:
+                mancants.append(str(pid))
+
     if mancants:
-        await update.message.reply_text(f"❓ Proves pendents al bloc {bloc}: {', '.join(mancants)}")
+        await update.message.reply_text(f"❓ Proves pendents fins al bloc {bloc}: {', '.join(mancants)}")
     else:
         await update.message.reply_text(f"🎉 Totes les proves del bloc {bloc} han estat contestades!")
         await llistar_proves(update, context)
@@ -246,6 +253,8 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} correctes)\n"
     await update.message.reply_text(msg)
 
+
+    
 async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if not text or not text.lower().startswith("resposta"):
@@ -319,6 +328,7 @@ def main():
     app.add_handler(CommandHandler("proves", llistar_proves))
     app.add_handler(CommandHandler("manquen", manquen))
     app.add_handler(CommandHandler("ranking", ranking))
+    app.add_handler(CommandHandler("consells", consells))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
