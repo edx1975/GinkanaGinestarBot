@@ -3,34 +3,42 @@
 
 ➡️ INSCRIPCIÓ
 Per participar, crea un equip i inscriu-lo amb:
+  /inscriure NomEquip nom1 nom2 nom3
 
-  /inscriure NomEquip nom1,nom2,nom3
+Exemple:
+  /inscriure EquipElsMillors JoanaArs PolBorràs CarmeCasadó 
 
-- Vigila els "espais": fixa't que només n'hi ha un entre "/inscriure" i el "NomEquip" i que no hi ha cap espai entre el nom dels jugadors, nomes una coma "," entre ells.)
-- El jugador que fa la inscripció és el Portaveu i no cal que s'afegeixi com a jugador, ja ho és per defecte.
-Només ell podrà enviar respostes.
+- Fixa't que no hi han espais ente les paraules de l'equip o el nom d'una mateixa persona.
+- El jugador que fa la inscripció és el Portaveu i només ell pot contestar les preguntes amb el seu compte de Telegram.
+
 
 ➡️ PROVES
-Responeu les primeres 10 proves del primer bloc. Per veure les proves disponibles:
+Responeu les primeres 10 proves del primer bloc. 
+Per veure les proves disponibles: 
   /proves
 
-Recorda que les proves es desbloquegen de 10 en 10. N'hi han 30 en total.
+- Recorda que les proves es desbloquegen de 10 en 10. N'hi han 30 en total.
 Has de contestar totes les d’un bloc per passar al següent.
+
 
 ➡️ RESPOSTES
 Per respondre a una prova:
   resposta <número> <resposta>
-exemple: 
+
+Exemple: 
   resposta 3 11-09-1919
-(aneu alerta, perquè les respostes no es poden canviar)
+
+- Aneu alerta, perquè les respostes no es poden canviar. 
+- Aquesta instrucció no porta la barra inclinada "/" al davant.
+
 
 ➡️ ESTAT
 Per veure quines proves del teu bloc encara no has contestat:
   /manquen
+
 
 ➡️ RANKING
 Per veure la classificació:
   /ranking
 
 Molta sort i bona Ginkana! 🎉
- 
