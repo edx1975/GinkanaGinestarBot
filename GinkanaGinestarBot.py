@@ -337,6 +337,11 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📊 Trobareu la Classificació Definitiva a la parada de Lo Margalló 🍾.\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
             "🐔 Lo Corral Associació Cultural de Ginestar, 28 de setembre de 2025. #LoCorralAC")
+           
+    # 👉 Després del missatge, envia la imatge
+        if os.path.exists("image.png"):
+            with open("image.png", "rb") as f:
+                await update.message.reply_photo(photo=f)
 
 # ----------------------------
 # Main
