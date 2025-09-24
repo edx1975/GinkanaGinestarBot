@@ -226,13 +226,16 @@ async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for b in range(bloc):  # recorre tots els blocs fins al bloc actual
         for pid in rangs[b]:
             if str(pid) not in res and str(pid) in proves:
-                mancants.append(str(pid))
+                p = proves[str(pid)]
+                mancants.append(f"{pid}. {p['titol']}")
 
     if mancants:
-        await update.message.reply_text(f"❓ Proves pendents fins al bloc {bloc}: {', '.join(mancants)}")
+        msg = f"❓ Proves pendents fins al bloc {bloc}:\n\n" + "\n".join(mancants)
+        await update.message.reply_text(msg)
     else:
         await update.message.reply_text(f"🎉 Totes les proves del bloc {bloc} han estat contestades!")
         await llistar_proves(update, context)
+
 
 async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     records = sheet.get_all_records()
