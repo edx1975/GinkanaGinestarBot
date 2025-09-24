@@ -3,12 +3,12 @@
 
 ➡️ INSCRIPCIÓ
 Per participar, crea un equip i inscriu-lo amb:
-  /inscriure NomEquip nom1 nom2 nom3
+  /inscriure NomEquip nom1 nom2 nom3 ...
 
 Exemple:
   /inscriure EquipElsMillors JoanaArs PolBorràs CarmeCasadó 
 
-- Fixa't que no hi han espais ente les paraules de l'equip o el nom d'una mateixa persona.
+- Fixa't que no hi han espais entre les paraules de l'equip o el nom d'una mateixa persona.
 - El jugador que fa la inscripció és el Portaveu i només ell pot contestar les preguntes de l'equip amb el seu compte de Telegram.
 
 
@@ -18,7 +18,7 @@ Per veure les proves disponibles:
   /proves
 
 - Recordeu que les proves es desbloquegen de 10 en 10. N'hi han 30 en total.
-Has de contestar totes les d’un bloc per passar al següent.
+Responeu totes les d’un bloc per passar al següent.
 
 
 ➡️ RESPOSTES
@@ -30,11 +30,11 @@ Exemple:
 
 - Aneu alerta, perquè les respostes no es poden canviar. 
 - Aquesta instrucció no porta la barra inclinada "/" al davant.
-- No cal donar les respostes en un ordre concret, podeu començar per la que vulguis.
+- No cal donar les respostes en un ordre concret, podeu començar per la que vulgueu.
 
 
 ➡️ ESTAT
-Per veure quines proves del teu bloc encara no heu contestat:
+Per veure quines proves del vostre bloc encara no heu contestat:
   /manquen
 
 
