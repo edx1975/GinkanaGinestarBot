@@ -133,12 +133,12 @@ def validate_answer(prova, resposta):
 # ----------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Benvingut a la Gran Ginkana de la Fira del Raure 2025 de Ginestar!\n\n"
+        "👋 Benvingut a la Gran Ginkana de la Fira Raure 2025 de Ginestar!\n\n"
         "La Ginkana ha començat a les 11h i acaba a les 19h. \n"
         "Contesta els 3 blocs de 10 proves. Per desbloquejar el següent bloc, primer has d'haver contestat l'actual.\n\n"
         "📖 Comandes útils:\n"
         "/ajuda - veure menú d'ajuda\n"
-        "/inscriure NomEquip nom1,nom2,nom3 - registrar el teu equip\n"
+        "/inscriure NomEquip nom1 nom2 nom3 - registrar el teu equip\n"
         "/proves - veure llista de proves\n"
         "/ranking - veure puntuacions\n"
         "/manquen - veure proves pendents del teu bloc actual\n\n"
@@ -217,8 +217,8 @@ async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Cas especial: ja s'ha fet la 31
     if "31" in res:
         await update.message.reply_text(
-            "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
-            "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
+            "🏆 Heu completat la **Primera Gran Ginkana de la Fira Raure** 🎉\n\n"
+            "📊 Trobareu la Classificació Definitiva a la parada de Lo Margalló\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
             "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025."
         )
@@ -333,7 +333,7 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⛪️ Trobareu la resposta 31 a la façana de l'Església, però només de 19:01 a 19:02")
     if prova["tipus"] == "final_joc":
         await update.message.reply_text(
-            "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
+            "🏆 Heu completat la **Primera Gran Ginkana de la Fira Raure** 🎉\n\n"
             "📊 Trobareu la Classificació Definitiva a la parada de Lo Margalló 🍾.\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
             "🐔 Lo Corral Associació Cultural de Ginestar, 28 de setembre de 2025. #LoCorralAC")

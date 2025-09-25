@@ -1,4 +1,4 @@
-📚 AJUDA DE LA GRAN GINKANA DE LA FIRA DEL RAURE
+📚 AJUDA DE LA GRAN GINKANA DE LA FIRA RAURE
 
 
 ➡️ INSCRIPCIÓ
@@ -26,7 +26,7 @@ Per respondre a una prova:
   resposta <número> <resposta>
 
 Exemple: 
-  resposta 3 11-09-1919
+  resposta 1 all
 
 - Aneu alerta, perquè les respostes no es poden canviar. 
 - Aquesta instrucció no porta la barra inclinada "/" al davant.
@@ -41,5 +41,7 @@ Per veure quines proves del vostre bloc encara no heu contestat:
 ➡️ RANKING
 Per veure la classificació:
   /ranking
+
+-En cas d'empat de punts, guanyarà l'equip que abans hagi completat les 30 proves.
 
 Molta sort i bona Ginkana! 🎉
