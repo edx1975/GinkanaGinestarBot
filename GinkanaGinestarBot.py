@@ -352,7 +352,32 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ----------------------------
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"👥 Usuaris registrats: {len(registered_chats)}")
+
+# ----------------------------
+# EQUIPS
+# ----------------------------
+async def llistar_equips(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    equips = carregar_equips()
+    records = sheet.get_all_records()
     
+    msg = "📋 Llista d'equips:\n\n"
+    for equip, info in equips.items():
+        # Buscar hora resposta de la prova 30
+        hora_prova_30 = "pendent"
+        for row in records:
+            if row["equip"] == equip and str(row["prova_id"]) == "30":
+                hora_prova_30 = row.get("hora", "pendent")
+                break
+        
+        msg += (
+            f"{equip} | Portaveu: @{info['portaveu']} | "
+            f"Jugadors: {', '.join(info['jugadors'])} | "
+            f"Inscripció: {info.get('hora_inscripcio','?')} | "
+            f"Prova 30: {hora_prova_30}\n"
+        )
+
+    await update.message.reply_text(msg)
+
 # ----------------------------
 # Main
 # ----------------------------
@@ -365,6 +390,7 @@ def main():
     app.add_handler(CommandHandler("manquen", manquen))
     app.add_handler(CommandHandler("ranking", ranking))
     app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("ekips", llistar_equips))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
