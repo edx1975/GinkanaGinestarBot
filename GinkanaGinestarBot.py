@@ -263,7 +263,7 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sorted_equips = sorted(equips_data.items(), key=lambda x: x[1]["punts"], reverse=True)
     msg = "🏆 Classificació:\n\n"
     for i,(equip,data) in enumerate(sorted_equips,start=1):
-        base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} | ✅)"
+        base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} ✅)"
         # comprovar si ha contestat totes les 30 primeres proves
         if all(str(pid) in data["respostes"] for pid in range(1,31)):
             hores = [
@@ -273,7 +273,7 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             if hores:
                 hora_final = max(hores).strftime("%H:%M:%S")
-                base += f" | ⏰Fi: {hora_final}"
+                base += f" | Fi: {hora_final}h ⏰"
         msg += base + "\n"
     await update.message.reply_text(msg)
 
