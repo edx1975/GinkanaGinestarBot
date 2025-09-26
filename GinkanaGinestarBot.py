@@ -280,6 +280,31 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += base + "\n"
     await update.message.reply_text(msg)
 
+async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    equips = carregar_equips()
+    records = get_records()  # obté el cache de Google Sheets
+
+    equips_list = []
+    for equip, info in equips.items():
+        punts = sum(int(row["punts"]) for row in records if row["equip"] == equip and row["estat"] == "VALIDADA")
+        equips_list.append({
+            "equip": equip,
+            "portaveu": info["portaveu"],
+            "jugadors": ", ".join(info["jugadors"]),
+            "hora": info.get("hora_inscripcio", ""),
+            "punts": punts
+        })
+
+    # Ordenar per hora d'inscripció
+    equips_list.sort(key=lambda x: x["hora"])
+
+    msg = "📋 Llista d'equips:\n\n"
+    for e in equips_list:
+        msg += f"{e['equip']} - @{e['portaveu']}\nJugadors: {e['jugadors']}\nHora insc: {e['hora']} | Punts: {e['punts']}\n\n"
+
+    await update.message.reply_text(msg)
+
+
 ICONS = {
     "VALIDADA": "✅",
     "INCORRECTA": "❌",
@@ -368,6 +393,8 @@ def main():
     app.add_handler(CommandHandler("proves", llistar_proves))
     app.add_handler(CommandHandler("manquen", manquen))
     app.add_handler(CommandHandler("ranking", ranking))
+    app.add_handler(CommandHandler("ekips", ekips))
+
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
