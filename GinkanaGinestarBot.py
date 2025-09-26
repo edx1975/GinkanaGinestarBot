@@ -346,14 +346,14 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🎆🎆🎆 TAA-TAA-TAA-XAAAAAN!!! 🎆🎆🎆\n\n"
             "🏁 FELICITATS!! Heu completat les 30 proves!\n\n"
-            "🏔️ Però encara queda LA PROVA DEFINITIVA: envieu la resposta 31 per completar la ginkana."
+            "🏔️ Però encara queda LA PROVA DEFINITIVA: envieu la resposta 31 per completar la ginkana. La trobareu de 19:01 a 19:02 a la façana principal de l'Església. No feu tard."
         )
     if prova["tipus"] == "final_joc":
         await update.message.reply_text(
             "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
-            "📊 Trobareu els resultats definitius a la parada de lo Margalló!g\n\n\n\n"
+            "📊 Trobareu els resultats definitius a la parada de lo Margalló.\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025."
+            "🐔 Lo Corral AC | Ginestar | 28-09-2025."
         )
 
 
