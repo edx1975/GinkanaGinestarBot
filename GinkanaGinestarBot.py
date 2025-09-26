@@ -7,6 +7,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 import gspread
 import json
 import csv
+from zoneinfo import ZoneInfo
+MADRID_TZ = ZoneInfo("Europe/Madrid")
+
 
 # ----------------------------
 # Variables d'entorn
@@ -85,7 +88,7 @@ def carregar_equips():
     return equips
 
 def guardar_equip(equip, portaveu, jugadors_llista):
-    hora = datetime.datetime.now().strftime("%H:%M")
+    hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M")
     exists = os.path.exists(EQUIPS_CSV)
     with open(EQUIPS_CSV, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -97,7 +100,7 @@ def guardar_equip(equip, portaveu, jugadors_llista):
 # Helpers Google Sheets
 # ----------------------------
 def guardar_submission(equip, prova_id, resposta, punts, estat):
-    hora = datetime.datetime.now().strftime("%H:%M:%S")
+    hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M:%S")
     sheet.append_row([equip, prova_id, resposta, punts, estat, hora])
     # Invalidar cache
     global _cache_records, _cache_time
@@ -348,7 +351,7 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if prova["tipus"] == "final_joc":
         await update.message.reply_text(
             "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
-            "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
+            "📊 Trobareu els resultats definitius a la parada de lo Margalló!g\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
             "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025."
         )
