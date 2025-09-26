@@ -1,53 +1,38 @@
-from dotenv import load_dotenv
+import logging
+import asyncio
 import os
-load_dotenv()  # Això llegeix el .env i posa les variables a os.environ
-import datetime
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-import gspread
-import json
 import csv
+import datetime
+from datetime import datetime as dt
+from telegram import Update, constants
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 # ----------------------------
-# Variables d'entorn
+# CONFIGURACIÓ
 # ----------------------------
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-if not TELEGRAM_TOKEN:
-    print("❌ Falta la variable d'entorn TELEGRAM_TOKEN")
-    exit(1)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON")
-if not GOOGLE_CREDS_JSON:
-    print("❌ Falta la variable d'entorn GOOGLE_CREDS_JSON")
-    exit(1)
+# Tokens i data objectiu
+TELEGRAM_TOKEN = "8327719051:AAEl9-TWDMCTaQ9qw73ujhiNQeLMdoq-YFM"  # Canvia pel teu token
+TARGET_DATE = dt(2025, 9, 28, 11, 0, 0)
 
+# Missatge fix del compte enrere
+fixed_message_id = None
+fixed_chat_id = None
+
+# ----------------------------
+# Fitxers CSV
+# ----------------------------
 PROVES_CSV = os.getenv("GINKANA_PROVES_CSV", "./proves_ginkana.csv")
 EQUIPS_CSV = os.getenv("GINKANA_EQUIPS_CSV", "./equips.csv")
+PUNTS_CSV = os.getenv("GINKANA_PUNTS_CSV", "./punts_equips.csv")
 AJUDA_TXT = os.getenv("GINKANA_AJUDA_TXT", "./ajuda.txt")
-GINKANA_PUNTS_SHEET = os.getenv("GINKANA_PUNTS_SHEET", "punts_equips")
 
 # ----------------------------
-# Google Sheets
-# ----------------------------
-creds_dict = {
-    "type": "service_account",
-    "project_id": os.getenv("GOOGLE_PROJECT_ID"),
-    "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
-    "private_key": os.getenv("GOOGLE_PRIVATE_KEY").replace("\\n", "\n"),
-    "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
-    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
-}
-
-gc = gspread.service_account_from_dict(creds_dict)
-sheet = gc.open(os.getenv("GINKANA_PUNTS_SHEET")).sheet1
-print(sheet.get_all_records())
-
-# ----------------------------
-# Helpers CSV
+# HELPERS GINKANA
 # ----------------------------
 def carregar_proves():
     proves = {}
@@ -79,25 +64,32 @@ def guardar_equip(equip, portaveu, jugadors_llista):
             writer.writerow(["equip","portaveu","jugadors","hora_inscripcio"])
         writer.writerow([equip, portaveu.lstrip("@"), ",".join(jugadors_llista), hora])
 
-# ----------------------------
-# Helpers Google Sheets
-# ----------------------------
 def guardar_submission(equip, prova_id, resposta, punts, estat):
-    sheet.append_row([equip, prova_id, resposta, punts, estat])
+    exists = os.path.exists(PUNTS_CSV)
+    with open(PUNTS_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not exists:
+            writer.writerow(["equip","prova_id","resposta","punts","estat"])
+        writer.writerow([equip, prova_id, resposta, punts, estat])
 
 def ja_resposta(equip, prova_id):
-    records = sheet.get_all_records()
-    for row in records:
-        if row["equip"] == equip and str(row["prova_id"]) == str(prova_id):
-            return True
+    if not os.path.exists(PUNTS_CSV):
+        return False
+    with open(PUNTS_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row["equip"] == equip and row["prova_id"] == prova_id:
+                return True
     return False
 
 def respostes_equip(equip):
     res = {}
-    records = sheet.get_all_records()
-    for row in records:
-        if row["equip"] == equip:
-            res[str(row["prova_id"])] = row["estat"]
+    if os.path.exists(PUNTS_CSV):
+        with open(PUNTS_CSV, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["equip"] == equip:
+                    res[row["prova_id"]] = row["estat"]
     return res
 
 def bloc_actual(equip, proves):
@@ -109,9 +101,6 @@ def bloc_actual(equip, proves):
         return 2
     return 1
 
-# ----------------------------
-# Validació de respostes
-# ----------------------------
 def validate_answer(prova, resposta):
     tipus = prova["tipus"]
     punts = int(prova["punts"])
@@ -129,241 +118,120 @@ def validate_answer(prova, resposta):
     return 0, "PENDENT"
 
 # ----------------------------
-# Comandes Telegram
+# FUNCIONS COMPTE ENRERE
 # ----------------------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Benvingut a la Gran Ginkana de la Fira Raure 2025 de Ginestar!\n\n"
-        "La Ginkana ha començat a les 11h i acaba a les 19h. \n"
-        "Contesta els 3 blocs de 10 proves. Per desbloquejar el següent bloc, primer has d'haver contestat l'actual.\n\n"
-        "📖 Comandes útils:\n"
-        "/ajuda - veure menú d'ajuda\n"
-        "/inscriure NomEquip nom1 nom2 nom3 - registrar el teu equip\n"
-        "/proves - veure llista de proves\n"
-        "/ranking - veure puntuacions\n"
-        "/manquen - veure proves pendents del teu bloc actual\n\n"
-        "📣 Per respondre una prova envia:\n"
-        "resposta <numero> <resposta>\n\n"
-        "🐔 Una iniciativa de Lo Corral associació cultural amb la col·laboració de lo Grup de Natura lo Margalló \n"
+def generar_countdown():
+    now = dt.now()
+    remaining = TARGET_DATE - now
+    if remaining.total_seconds() > 0:
+        days = remaining.days
+        hours, remainder = divmod(remaining.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        countdown = (
+            f"       ⏳ {days} dies\n"
+            f"       ⏰ {hours} hores\n"
+            f"       ⏱️ {minutes} minuts\n"
+            f"       ⏲️ {seconds} segons"
+        )
+    else:
+        countdown = "🎉 Ja ha començat la Ginkana!"
+    message = (
+        f"🎉 <b>Ginkana de la Fira del Raure</b> 🎉\n\n"
+        f"⏳ Compte enrere fins diumenge 28 de setembre de 2025 a les 11h:\n"
+        f"{countdown}\n\n"
+        f"🔗 El Bot de la Ginkana serà accessible aquí: <b>@Gi*************Bot</b>\n"
+        "ℹ️ L'enllaç al bot es mostrarà el diumenge 28 de setembre de 2025 a les 11h."
+    )
+    return message
+
+async def countdown_task(context: ContextTypes.DEFAULT_TYPE):
+    global fixed_message_id, fixed_chat_id
+    if not fixed_message_id or not fixed_chat_id:
+        logging.warning("❌ Missatge fix no inicialitzat")
+        return
+
+    while True:
+        remaining_seconds = (TARGET_DATE - dt.now()).total_seconds()
+        message = generar_countdown()
+        try:
+            await context.bot.edit_message_text(
+                chat_id=fixed_chat_id,
+                message_id=fixed_message_id,
+                text=message,
+                parse_mode=constants.ParseMode.HTML
+            )
+        except Exception as e:
+            logging.warning(f"No s'ha pogut actualitzar el missatge: {e}")
+
+        # Quan finalitza el compte enrere, inicialitza automàticament la Ginkana
+        if remaining_seconds <= 0:
+            logging.info("✅ Compte enrere finalitzat, inicialitzant Ginkana...")
+            # Crida la funció de start de la Ginkana
+            from functools import partial
+            await start_ginkana(context.application, fixed_chat_id)
+            break
+
+        await asyncio.sleep(60)  # Actualitza cada minut
+
+# ----------------------------
+# FUNCIONS GINKANA
+# ----------------------------
+async def start_ginkana(app, chat_id):
+    """
+    Envia el missatge inicial de la Ginkana al xat indicat.
+    """
+    await app.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "👋 Benvingut a la Gran Ginkana de la Fira del Raure 2025 de Ginestar!\n\n"
+            "La Ginkana comença a les 11h i acaba a les 19h. \n"
+            "Contesta els 3 blocs de 10 proves. Per desbloquejar el següent bloc, primer has d'haver contestat l'actual.\n\n"
+            "📖 Comandes útils:\n"
+            "/ajuda - veure menú d'ajuda\n"
+            "/inscriure NomEquip nom1,nom2,nom3 - registrar el teu equip\n"
+            "/proves - veure llista de proves\n"
+            "/ranking - veure puntuacions\n"
+            "/manquen - veure proves pendents del teu bloc actual\n\n"
+            "📣 Per respondre una prova envia:\n"
+            "resposta <numero> <resposta>\n\n"
+            "🐔 Una iniciativa de Lo Corral associació cultural amb la col·laboració de lo Grup de Natura lo Margalló"
+        ),
+        parse_mode=constants.ParseMode.HTML
     )
 
-async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if os.path.exists(AJUDA_TXT):
-        with open(AJUDA_TXT, encoding="utf-8") as f:
-            msg = f.read()
-    else:
-        msg = "ℹ️ Encara no hi ha ajuda definida."
-    await update.message.reply_text(msg)
-
-async def inscriure(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 2:
-        await update.message.reply_text("Format: /inscriure NomEquip nom1,nom2,...")
-        return
-    equip = context.args[0]
-    jugadors_text = " ".join(context.args[1:])
-    jugadors_llista = [j.strip() for j in jugadors_text.split(",") if j.strip()]
-    if not jugadors_llista:
-        await update.message.reply_text("❌ Cal indicar almenys un jugador.")
-        return
-    portaveu = (update.message.from_user.username or update.message.from_user.first_name).lower()
-    equips = carregar_equips()
-    for info in equips.values():
-        if info["portaveu"] == portaveu:
-            await update.message.reply_text("❌ Ja ets portaveu d'un altre equip.")
-            return
-    guardar_equip(equip, portaveu, jugadors_llista)
-    await update.message.reply_text(f"✅ Equip '{equip}' registrat amb portaveu @{portaveu}.")
-
-async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    proves = carregar_proves()
-    user = update.message.from_user
-    username = (user.username or "").lstrip("@").lower()
-    firstname = (user.first_name or "").lower()
-    equips = carregar_equips()
-    equip = None
-    for e, info in equips.items():
-        if info["portaveu"] in [username, firstname]:
-            equip = e
-            break
-    if not equip:
-        await update.message.reply_text("❌ Has d'estar inscrit per veure les proves.")
-        return
-    bloc = bloc_actual(equip, proves)
-    rang = {1: range(1,11),2:range(11,21),3:range(21,31)}[bloc]
-    msg = f"📋 Llista de proves (bloc {bloc}):\n\n"
-    for pid in rang:
-        if str(pid) in proves:
-            p = proves[str(pid)]
-            msg += f"{pid}. {p['titol']}\n{p['descripcio']} - {p['punts']} punts\n\n"
-    await update.message.reply_text(msg)
-
-async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    proves = carregar_proves()
-    user = update.message.from_user
-    username = (user.username or "").lstrip("@").lower()
-    firstname = (user.first_name or "").lower()
-    equips = carregar_equips()
-    equip = None
-    for e, info in equips.items():
-        if info["portaveu"] in [username, firstname]:
-            equip = e
-            break
-    if not equip:
-        await update.message.reply_text("❌ Has d'estar inscrit.")
-        return
-
-    res = respostes_equip(equip)
-
-    # Cas especial: ja s'ha fet la 31
-    if "31" in res:
-        await update.message.reply_text(
-            "🏆 Heu completat la **Primera Gran Ginkana de la Fira Raure** 🎉\n\n"
-            "📊 Trobareu la Classificació Definitiva a la parada de Lo Margalló\n\n\n\n"
-            "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025."
-        )
-        return
-
-    bloc = bloc_actual(equip, proves)
-    rangs = [range(1, 11), range(11, 21), range(21, 31)]
-    mancants = []
-
-    # Recorrem fins al bloc actual
-    for b in range(bloc):
-        for pid in rangs[b]:
-            if str(pid) not in res and str(pid) in proves:
-                p = proves[str(pid)]
-                mancants.append(f"{pid}. {p['titol']}")
-
-    # Afegim la prova 31 si cal
-    if all(str(i) in res for i in range(1, 31)) and "31" not in res and "31" in proves:
-        p = proves["31"]
-        mancants.append(f"31. {p['titol']}")
-
-        msg = (
-            "⏳ Encara us falta **LA PROVA FINAL SECRETA**! 🔑\n\n"
-            "❓ Pendent:\n" + "\n".join(mancants)
-        )
-        await update.message.reply_text(msg)
-        return
-
-    if mancants:
-        msg = f"❓ Proves pendents del bloc {bloc}:\n\n" + "\n".join(mancants)
-        await update.message.reply_text(msg)
-    else:
-        await update.message.reply_text(f"🎉 Totes les proves del bloc {bloc} han estat contestades!")
-        await llistar_proves(update, context)
-
-async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    records = sheet.get_all_records()
-    equips_data = {}
-    for row in records:
-        e = row["equip"]
-        equips_data.setdefault(e, {"punts":0,"contestades":0,"correctes":0})
-        equips_data[e]["contestades"] += 1
-        if row["estat"] == "VALIDADA":
-            equips_data[e]["punts"] += int(row["punts"])
-            equips_data[e]["correctes"] += 1
-    if not equips_data:
-        await update.message.reply_text("No hi ha punts registrats encara.")
-        return
-    sorted_equips = sorted(equips_data.items(), key=lambda x: x[1]["punts"], reverse=True)
-    msg = "🏆 Classificació provisional:\n\n"
-    for i,(equip,data) in enumerate(sorted_equips,start=1):
-        msg += f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} correctes)\n"
-    await update.message.reply_text(msg)
-
-
-    
-async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if not text or not text.lower().startswith("resposta"):
-        # Aquí entrem si NO és una resposta vàlida
-        await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
-        return
-
-    parts = text.split(maxsplit=2)
-    if len(parts) < 3:
-        await update.message.reply_text("Format: resposta <id> <text>")
-        return
-
-    prova_id, resposta = parts[1], parts[2]
-    proves = carregar_proves()
-    if prova_id not in proves:
-        await update.message.reply_text("❌ Prova no trobada.")
-        return
-
-    user = update.message.from_user
-    username = (user.username or "").lstrip("@").lower()
-    firstname = (user.first_name or "").lower()
-    equips = carregar_equips()
-    equip = None
-    for e, info in equips.items():
-        if info["portaveu"] in [username, firstname]:
-            equip = e
-            break
-
-    if not equip:
-        await update.message.reply_text("❌ Només el portaveu pot enviar respostes.")
-        return
-    if ja_resposta(equip, prova_id):
-        await update.message.reply_text(f"⚠️ L'equip '{equip}' ja ha respost la prova {prova_id}.")
-        return
-
-    bloc_anterior = bloc_actual(equip, proves)
-    prova = proves[prova_id]
-    punts, estat = validate_answer(prova, resposta)
-    guardar_submission(equip, prova_id, resposta, punts, estat)
-    await update.message.reply_text(f"✅ Resposta registrada: {estat}. Punts: {punts}")
-
-    bloc_nou = bloc_actual(equip, proves)
-    if bloc_nou == 2 and bloc_anterior == 1:
-        await update.message.reply_text("🎺 Ta-xàn! Enhorabona, has completat el primer bloc, aquí tens el segon!")
-        await llistar_proves(update, context)
-    elif bloc_nou == 3 and bloc_anterior == 2:
-        await update.message.reply_text("🎉 Ta-ta-ta-xaaaaàn! Gairebé ho teniu! Aquí teniu les últimes instruccions per al tercer bloc:")
-        await llistar_proves(update, context)
-
-    res = respostes_equip(equip)
-    if all(str(i) in res for i in range(21,31)) and "31" not in res:
-        await update.message.reply_text(
-            "🎆🎆🎆 TAA-TAA-TAA-XAAAAAN!!! 🎆🎆🎆\n\n"
-            "🏁 FELICITATS!! Heu completat les 30 proves!\n\n"
-            "🏔️ Però encara queda LA PROVA SECRETA: envieu la resposta 31 per completar la ginkana i obtenir els 50 punts EXTRA FINALS!.\n\n"
-            "⛪️ Trobareu la resposta 31 a la façana de l'Església, però només de 19:01 a 19:02")
-    if prova["tipus"] == "final_joc":
-        await update.message.reply_text(
-            "🏆 Heu completat la **Primera Gran Ginkana de la Fira Raure** 🎉\n\n"
-            "📊 Trobareu la Classificació Definitiva a la parada de Lo Margalló 🍾.\n\n\n\n"
-            "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral Associació Cultural de Ginestar, 28 de setembre de 2025. #LoCorralAC")
-           
-    # 👉 Després del missatge, envia la imatge
-        if os.path.exists("image.png"):
-            with open("image.png", "rb") as f:
-                await update.message.reply_photo(photo=f)
-
 # ----------------------------
-# USUARIS CONNECTATS
+# Comandes /start
 # ----------------------------
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"👥 Usuaris registrats: {len(registered_chats)}")
-    
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global fixed_message_id, fixed_chat_id
+    if fixed_message_id is None:
+        sent_message = await update.message.reply_text(
+            "⌛ Iniciant compte enrere...",
+            parse_mode=constants.ParseMode.HTML
+        )
+        fixed_message_id = sent_message.message_id
+        fixed_chat_id = sent_message.chat_id
+        context.application.create_task(countdown_task(context))
+    else:
+        await update.message.reply_text(
+            "⏳ El compte enrere ja està actiu al xat!",
+            parse_mode=constants.ParseMode.HTML
+        )
+
 # ----------------------------
 # Main
 # ----------------------------
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    # Handlers del bot
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ajuda", ajuda))
-    app.add_handler(CommandHandler("inscriure", inscriure))
-    app.add_handler(CommandHandler("proves", llistar_proves))
-    app.add_handler(CommandHandler("manquen", manquen))
-    app.add_handler(CommandHandler("ranking", ranking))
-    app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
-    print("✅ Bot Ginkana en marxa...")
+    # Aquí es poden afegir handlers de la Ginkana (ajuda, inscriure, proves, etc.)
+    # Els handlers complets de la Ginkana es poden afegir aquí com al codi original
+
+    logging.info("🚀 Bot de compte enrere i Ginkana en marxa...")
     app.run_polling()
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
+
