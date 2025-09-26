@@ -83,7 +83,8 @@ def carregar_equips():
             for row in reader:
                 equips[row["equip"]] = {
                     "portaveu": row["portaveu"].lstrip("@").lower(),
-                    "jugadors": [j.strip() for j in row["jugadors"].split(",") if j.strip()]
+                    "jugadors": [j.strip() for j in row["jugadors"].split(",") if j.strip()],
+                    "hora_inscripcio": row.get("hora_inscripcio", "")
                 }
     return equips
 
@@ -286,7 +287,12 @@ async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     equips_list = []
     for equip, info in equips.items():
-        punts = sum(int(row["punts"]) for row in records if row["equip"] == equip and row["estat"] == "VALIDADA")
+        punts = sum(
+            int(row["punts"])
+            for row in records
+            if row["equip"] == equip and row["estat"] == "VALIDADA"
+        )
+        # Tot en una sola línia per equip
         equips_list.append({
             "equip": equip,
             "portaveu": info["portaveu"],
@@ -298,12 +304,12 @@ async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Ordenar per hora d'inscripció
     equips_list.sort(key=lambda x: x["hora"])
 
+    # Missatge amb cada equip en una sola línia
     msg = "📋 Llista d'equips:\n\n"
     for e in equips_list:
-        msg += f"{e['equip']} - @{e['portaveu']}\nJugadors: {e['jugadors']}\nHora insc: {e['hora']} | Punts: {e['punts']}\n\n"
+        msg += f"{e['equip']} | @{e['portaveu']} | Jugadors: {e['jugadors']} | Hora insc: {e['hora']} | Punts: {e['punts']}\n"
 
     await update.message.reply_text(msg)
-
 
 ICONS = {
     "VALIDADA": "✅",
