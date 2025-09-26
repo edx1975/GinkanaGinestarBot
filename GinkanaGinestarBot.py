@@ -344,6 +344,12 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_photo(photo=f)
 
 # ----------------------------
+# USUARIS CONNECTATS
+# ----------------------------
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"👥 Usuaris registrats: {len(registered_chats)}")
+    
+# ----------------------------
 # Main
 # ----------------------------
 def main():
@@ -354,6 +360,7 @@ def main():
     app.add_handler(CommandHandler("proves", llistar_proves))
     app.add_handler(CommandHandler("manquen", manquen))
     app.add_handler(CommandHandler("ranking", ranking))
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
