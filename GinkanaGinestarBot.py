@@ -261,9 +261,9 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No hi ha punts registrats encara.")
         return
     sorted_equips = sorted(equips_data.items(), key=lambda x: x[1]["punts"], reverse=True)
-    msg = "🏆 Classificació provisional:\n\n"
+    msg = "🏆 Classificació:\n\n"
     for i,(equip,data) in enumerate(sorted_equips,start=1):
-        base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} correctes)"
+        base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} | ✅)"
         # comprovar si ha contestat totes les 30 primeres proves
         if all(str(pid) in data["respostes"] for pid in range(1,31)):
             hores = [
@@ -273,24 +273,33 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             if hores:
                 hora_final = max(hores).strftime("%H:%M:%S")
-                base += f" | ⏰ {hora_final}"
+                base += f" | ⏰Fi: {hora_final}"
         msg += base + "\n"
     await update.message.reply_text(msg)
+
+ICONS = {
+    "VALIDADA": "✅",
+    "INCORRECTA": "❌",
+    "PENDENT": "⏳"
+}
 
 async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if not text or not text.lower().startswith("resposta"):
         await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
         return
+
     parts = text.split(maxsplit=2)
     if len(parts) < 3:
         await update.message.reply_text("Format: resposta <id> <text>")
         return
+
     prova_id, resposta = parts[1], parts[2]
     proves = carregar_proves()
     if prova_id not in proves:
         await update.message.reply_text("❌ Prova no trobada.")
         return
+
     user = update.message.from_user
     username = (user.username or "").lstrip("@").lower()
     firstname = (user.first_name or "").lower()
@@ -300,36 +309,50 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if info["portaveu"] in [username, firstname]:
             equip = e
             break
+
     if not equip:
         await update.message.reply_text("❌ Només el portaveu pot enviar respostes.")
         return
     if ja_resposta(equip, prova_id):
         await update.message.reply_text(f"⚠️ L'equip '{equip}' ja ha respost la prova {prova_id}.")
         return
+
     bloc_anterior = bloc_actual(equip, proves)
     prova = proves[prova_id]
     punts, estat = validate_answer(prova, resposta)
     guardar_submission(equip, prova_id, resposta, punts, estat)
-    await update.message.reply_text(f"✅ Resposta registrada: {estat}. Punts: {punts}")
+
+    # Icona segons l'estat
+    icon = ICONS.get(estat, "ℹ️")
+    await update.message.reply_text(f"{icon} Resposta registrada: {estat}. Punts: {punts}")
+
     bloc_nou = bloc_actual(equip, proves)
     if bloc_nou == 2 and bloc_anterior == 1:
-        await update.message.reply_text("🎺 Ta-xàn! Enhorabona, has completat el primer bloc, aquí tens el segon!")
+        await update.message.reply_text(
+            "🎺 Ta-xàn! Enhorabona, has completat el primer bloc, aquí tens el segon!"
+        )
         await llistar_proves(update, context)
     elif bloc_nou == 3 and bloc_anterior == 2:
-        await update.message.reply_text("🎉 Ta-ta-ta-xaaaaàn! Gairebé ho teniu! Aquí teniu les últimes instruccions per al tercer bloc:")
+        await update.message.reply_text(
+            "🎉 Ta-ta-ta-xaaaaàn! Gairebé ho teniu! Aquí teniu les últimes instruccions per al tercer bloc:"
+        )
         await llistar_proves(update, context)
+
     res = respostes_equip(equip)
     if all(str(i) in res for i in range(21,31)) and "31" not in res:
         await update.message.reply_text(
             "🎆🎆🎆 TAA-TAA-TAA-XAAAAAN!!! 🎆🎆🎆\n\n"
             "🏁 FELICITATS!! Heu completat les 30 proves!\n\n"
-            "🏔️ Però encara queda LA PROVA DEFINITIVA: envieu la resposta 31 per completar la ginkana.")
+            "🏔️ Però encara queda LA PROVA DEFINITIVA: envieu la resposta 31 per completar la ginkana."
+        )
     if prova["tipus"] == "final_joc":
         await update.message.reply_text(
             "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
             "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
             "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025.")
+            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025."
+        )
+
 
 # ----------------------------
 # Main
