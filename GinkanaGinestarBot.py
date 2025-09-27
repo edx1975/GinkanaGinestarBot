@@ -109,7 +109,7 @@ def bloc_actual(equip, proves):
 def validate_answer(prova, resposta):
     tipus = prova["tipus"]
     punts = int(prova["punts"])
-    correct_answer = prova["resposta"]
+    correct_answer = str(prova["resposta"])  # <-- FORÇAR STRING
     if correct_answer == "REVIEW_REQUIRED":
         return 0, "PENDENT"
     if tipus in ["trivia", "qr", "final_joc"]:
