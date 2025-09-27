@@ -167,8 +167,8 @@ def guardar_equip(equip, portaveu, jugadors_llista):
     cache_invalidate("equips")
 
 def guardar_submission(equip, prova_id, resposta, punts, estat):
-    hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M:%S")
-    sheet_records.append_row([equip, prova_id, resposta, punts, estat, hora])
+    hora_local = datetime.datetime.now(MADRID_TZ).strftime("%H:%M:%S")
+    sheet_records.append_row([equip, prova_id, resposta, punts, estat, f"'{hora_local}"])
     # invalidar la cache de records (no recarreguem immediatament)
     cache_invalidate("records")
 
