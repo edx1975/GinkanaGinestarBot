@@ -458,7 +458,11 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ajuda", ajuda))
-    # ... afegeix la resta de CommandHandlers
+    app.add_handler(CommandHandler("inscriure", inscriure))
+    app.add_handler(CommandHandler("proves", llistar_proves))
+    app.add_handler(CommandHandler("ranking", ranking))
+    app.add_handler(CommandHandler("ekips", ekips))
+    app.add_handler(CommandHandler("emergencia", emergencia))
     app.add_handler(MessageHandler(filters.COMMAND, comanda_desconeguda))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
 
