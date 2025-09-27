@@ -2,7 +2,7 @@
 
 
 ➡️ INSCRIPCIÓ
-Per participar, crea un equip i inscriu-lo envían un missatge axil:
+Per participar, crea un equip i inscriu-lo enviant un missatge així:
   /inscriure NomEquip nom1 nom2 nom3 ...
 
 Exemple:
@@ -39,4 +39,4 @@ Per veure la classificació:
 
 -En cas d'empat de punts, guanyarà l'equip que abans hagi completat les 30 proves.
 
-Molta sort i bona Ginkana! 🎉
+Molta sort i bona Ginkana de la Fira Raure! 🎉
