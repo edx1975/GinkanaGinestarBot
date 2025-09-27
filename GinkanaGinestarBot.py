@@ -5,11 +5,9 @@ import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import gspread
-import csv
 from zoneinfo import ZoneInfo
-MADRID_TZ = ZoneInfo("Europe/Madrid")
-# Dins start() o inscriure()
 
+MADRID_TZ = ZoneInfo("Europe/Madrid")
 
 # ----------------------------
 # Variables d'entorn
@@ -19,14 +17,6 @@ if not TELEGRAM_TOKEN:
     print("❌ Falta la variable d'entorn TELEGRAM_TOKEN")
     exit(1)
 
-GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON")
-if not GOOGLE_CREDS_JSON:
-    print("❌ Falta la variable d'entorn GOOGLE_CREDS_JSON")
-    exit(1)
-
-PROVES_CSV = os.getenv("GINKANA_PROVES_CSV", "./proves_ginkana.csv")
-EQUIPS_CSV = os.getenv("GINKANA_EQUIPS_CSV", "./equips.csv")
-AJUDA_TXT = os.getenv("GINKANA_AJUDA_TXT", "./ajuda.txt")
 GINKANA_PUNTS_SHEET = os.getenv("GINKANA_PUNTS_SHEET", "punts_equips")
 
 # ----------------------------
@@ -46,7 +36,7 @@ creds_dict = {
 }
 
 gc = gspread.service_account_from_dict(creds_dict)
-sheet = gc.open(os.getenv("GINKANA_PUNTS_SHEET")).sheet1
+sheet_records = gc.open(GINKANA_PUNTS_SHEET).worksheet("punts_equips")
 
 # ----------------------------
 # Cache Google Sheets
@@ -59,65 +49,50 @@ def get_records():
     global _cache_records, _cache_time
     now = datetime.datetime.now()
     if _cache_records is None or (now - _cache_time).total_seconds() > _CACHE_TTL:
-        _cache_records = sheet.get_all_records()
+        _cache_records = sheet_records.get_all_records()
         _cache_time = now
     return _cache_records
 
 # ----------------------------
-# Helpers CSV
+# Helpers Google Sheets
 # ----------------------------
 def carregar_proves():
-    proves = {}
-    if os.path.exists(PROVES_CSV):
-        with open(PROVES_CSV, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                proves[str(int(row["id"]))] = row
+    sheet_proves = gc.open(GINKANA_PUNTS_SHEET).worksheet("proves")
+    rows = sheet_proves.get_all_records()
+    proves = {str(int(row["id"])): row for row in rows}
     return proves
 
 def carregar_equips():
+    sheet_equips = gc.open(GINKANA_PUNTS_SHEET).worksheet("equips")
+    rows = sheet_equips.get_all_records()
     equips = {}
-    if os.path.exists(EQUIPS_CSV):
-        with open(EQUIPS_CSV, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                equips[row["equip"]] = {
-                    "portaveu": row["portaveu"].lstrip("@").lower(),
-                    "jugadors": [j.strip() for j in row["jugadors"].split(",") if j.strip()],
-                    "hora_inscripcio": row.get("hora_inscripcio", "")
-                }
+    for row in rows:
+        equips[row["equip"]] = {
+            "portaveu": row["portaveu"].lstrip("@").lower(),
+            "jugadors": [j.strip() for j in row["jugadors"].split(",") if j.strip()],
+            "hora_inscripcio": row.get("hora_inscripcio", "")
+        }
     return equips
 
 def guardar_equip(equip, portaveu, jugadors_llista):
     hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M")
-    exists = os.path.exists(EQUIPS_CSV)
-    with open(EQUIPS_CSV, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if not exists:
-            writer.writerow(["equip","portaveu","jugadors","hora_inscripcio"])
-        writer.writerow([equip, portaveu.lstrip("@"), ",".join(jugadors_llista), hora])
+    sheet_equips = gc.open(GINKANA_PUNTS_SHEET).worksheet("equips")
+    sheet_equips.append_row([equip, portaveu.lstrip("@"), ",".join(jugadors_llista), hora])
 
-# ----------------------------
-# Helpers Google Sheets
-# ----------------------------
 def guardar_submission(equip, prova_id, resposta, punts, estat):
     hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M:%S")
-    sheet.append_row([equip, prova_id, resposta, punts, estat, hora])
+    sheet_records.append_row([equip, prova_id, resposta, punts, estat, hora])
     global _cache_records, _cache_time
     _cache_records = None
     _cache_time = None
 
 def ja_resposta(equip, prova_id):
     records = get_records()
-    for row in records:
-        if row["equip"] == equip and str(row["prova_id"]) == str(prova_id):
-            return True
-    return False
+    return any(row["equip"] == equip and str(row["prova_id"]) == str(prova_id) for row in records)
 
 def respostes_equip(equip):
     res = {}
-    records = get_records()
-    for row in records:
+    for row in get_records():
         if row["equip"] == equip:
             res[str(row["prova_id"])] = row["estat"]
     return res
@@ -131,16 +106,13 @@ def bloc_actual(equip, proves):
         return 2
     return 1
 
-# ----------------------------
-# Validació de respostes
-# ----------------------------
 def validate_answer(prova, resposta):
     tipus = prova["tipus"]
     punts = int(prova["punts"])
     correct_answer = prova["resposta"]
     if correct_answer == "REVIEW_REQUIRED":
         return 0, "PENDENT"
-    if tipus in ["trivia", "qr", "final_joc"]:  # 👈 ara final_joc entra aquí
+    if tipus in ["trivia", "qr", "final_joc"]:
         possibles = [r.strip().lower() for r in correct_answer.split("|")]
         if str(resposta).strip().lower() in possibles:
             return punts, "VALIDADA"
@@ -150,59 +122,29 @@ def validate_answer(prova, resposta):
 
 def guardar_chat_id(username, chat_id):
     username = username.lower()
-    usuaris = {}
-    # Carreguem els usuaris existents
-    if os.path.exists("usuaris.csv"):
-        with open("usuaris.csv", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                usuaris[row["chat_id"]] = row["username"]
-
-    # Afegim / actualitzem només si no existeix
-    if str(chat_id) not in usuaris:
-        usuaris[str(chat_id)] = username
-        with open("usuaris.csv", "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["username", "chat_id"])
-            for cid, uname in usuaris.items():
-                writer.writerow([uname, cid])
-
+    sheet_usuaris = gc.open(GINKANA_PUNTS_SHEET).worksheet("usuaris")
+    records = sheet_usuaris.get_all_records()
+    exists = any(int(r["chat_id"]) == chat_id for r in records)
+    if not exists:
+        sheet_usuaris.append_row([username, chat_id])
 
 def carregar_chat_ids():
+    sheet_usuaris = gc.open(GINKANA_PUNTS_SHEET).worksheet("usuaris")
     chat_ids = set()
-    if os.path.exists("usuaris.csv"):
-        with open("usuaris.csv", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                try:
-                    chat_ids.add(int(row["chat_id"]))
-                except ValueError:
-                    print(f"⚠️ Chat ID invàlid a usuaris.csv: {row['chat_id']}")
+    for row in sheet_usuaris.get_all_records():
+        try:
+            chat_ids.add(int(row["chat_id"]))
+        except ValueError:
+            print(f"⚠️ Chat ID invàlid a usuaris sheet: {row['chat_id']}")
     return list(chat_ids)
 
+def carregar_ajuda():
+    sheet_ajuda = gc.open(GINKANA_PUNTS_SHEET).worksheet("ajuda")
+    return sheet_ajuda.acell("A1").value or "ℹ️ Encara no hi ha ajuda definida."
 
-async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not os.path.exists(EMERGENCIA_TXT):
-        await update.message.reply_text("ℹ️ No hi ha cap missatge d'emergència definit.")
-        return
-
-    with open(EMERGENCIA_TXT, encoding="utf-8") as f:
-        missatge = f.read().strip()
-
-    chat_ids = carregar_chat_ids()
-    if not chat_ids:
-        await update.message.reply_text("⚠️ No hi ha cap usuari registrat per enviar el missatge d'emergència.")
-        return
-
-    enviats = 0
-    for chat_id in chat_ids:
-        try:
-            await context.bot.send_message(chat_id=chat_id, text=missatge)
-            enviats += 1
-        except Exception as e:
-            print(f"❌ No s'ha pogut enviar a {chat_id}: {e}")
-
-    await update.message.reply_text(f"📢 Missatge d'emergència enviat a {enviats} usuaris.")
+def carregar_emergencia():
+    sheet_emergencia = gc.open(GINKANA_PUNTS_SHEET).worksheet("emergencia")
+    return sheet_emergencia.acell("A1").value or "ℹ️ No hi ha cap missatge d'emergència definit."
 
 # ----------------------------
 # Comandes Telegram
@@ -223,11 +165,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if os.path.exists(AJUDA_TXT):
-        with open(AJUDA_TXT, encoding="utf-8") as f:
-            msg = f.read()
-    else:
-        msg = "ℹ️ Encara no hi ha ajuda definida."
+    msg = carregar_ajuda()
     await update.message.reply_text(msg)
 
 async def inscriure(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -242,14 +180,13 @@ async def inscriure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not jugadors_llista:
         await update.message.reply_text("❌ Cal indicar almenys un jugador.")
         return
-    portaveu = (update.message.from_user.username or update.message.from_user.first_name).lower()
+    portaveu = (user.username or user.first_name).lower()
     equips = carregar_equips()
     for info in equips.values():
         if info["portaveu"] == portaveu:
             await update.message.reply_text("❌ Ja ets portaveu d'un altre equip.")
             return
     guardar_equip(equip, portaveu, jugadors_llista)
-    guardar_chat_id((user.username or user.first_name).lower(), user.id)
     await update.message.reply_text(f"✅ Equip '{equip}' registrat amb portaveu @{portaveu}.")
 
 async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -331,12 +268,6 @@ async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"{e['equip']} | @{e['portaveu']} | Jugadors: {e['jugadors']} | Hora insc: {e['hora']} | Punts: {e['punts']}\n"
     await update.message.reply_text(msg)
 
-ICONS = {
-    "VALIDADA": "✅",
-    "INCORRECTA": "❌",
-    "PENDENT": "⏳"
-}
-
 async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if not text or not text.lower().startswith("resposta"):
@@ -370,51 +301,18 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prova = proves[prova_id]
     punts, estat = validate_answer(prova, resposta)
     guardar_submission(equip, prova_id, resposta, punts, estat)
-    icon = ICONS.get(estat, "ℹ️")
+    icon = {"VALIDADA": "✅","INCORRECTA": "❌","PENDENT": "⏳"}.get(estat, "ℹ️")
     await update.message.reply_text(f"{icon} Resposta registrada: {estat}. Punts: {punts}")
-    bloc_nou = bloc_actual(equip, proves)
-    if bloc_nou == 2 and bloc_anterior == 1:
-        await update.message.reply_text(
-            "🎺 Ta-xàn! Enhorabona, has completat el primer bloc, aquí tens el segon!"
-        )
-        await llistar_proves(update, context)
-    elif bloc_nou == 3 and bloc_anterior == 2:
-        await update.message.reply_text(
-            "🎉 Ta-ta-ta-xaaaaàn! Gairebé ho teniu! Aquí teniu les últimes instruccions per al tercer bloc:"
-        )
-        await llistar_proves(update, context)
-    res = respostes_equip(equip)
-    if all(str(i) in res for i in range(21,31)) and "31" not in res:
-        await update.message.reply_text(
-            "🎆🎆🎆 TAA-TAA-TAA-XAAAAAN!!! 🎆🎆🎆\n\n"
-            "🏁 FELICITATS!! Heu completat les 30 proves!\n\n"
-            "🏔️ Però encara queda LA PROVA SECRETA: envieu la resposta 31 per completar la Ginkana. La trobareu de 19:01 a 19:02 a la façana principal de l'Església. No feu tard."
-        )
-    if prova["tipus"] == "final_joc":
-        await update.message.reply_text(
-            "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
-            "📊 Trobareu els resultats definitius a la parada de lo Margalló.\n\n\n\n"
-            "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral AC | Ginestar | 28-09-2025."
-        )
-async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
 
-EMERGENCIA_TXT = os.getenv("GINKANA_EMERGENCIA_TXT", "./emergencia.txt")
-
+# ----------------------------
+# Emergència ara llegeix de Google Sheets
+# ----------------------------
 async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not os.path.exists(EMERGENCIA_TXT):
-        await update.message.reply_text("ℹ️ No hi ha cap missatge d'emergència definit.")
-        return
-
-    with open(EMERGENCIA_TXT, encoding="utf-8") as f:
-        missatge = f.read().strip()
-
+    missatge = carregar_emergencia()
     chat_ids = carregar_chat_ids()
     if not chat_ids:
         await update.message.reply_text("⚠️ No hi ha cap usuari registrat per enviar el missatge d'emergència.")
         return
-
     enviats = 0
     for chat_id in chat_ids:
         try:
@@ -422,10 +320,7 @@ async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
             enviats += 1
         except Exception as e:
             print(f"❌ No s'ha pogut enviar a {chat_id}: {e}")
-
     await update.message.reply_text(f"📢 Missatge d'emergència enviat a {enviats} usuaris.")
-
-
 
 # ----------------------------
 # Main
@@ -440,7 +335,7 @@ def main():
     app.add_handler(CommandHandler("ekips", ekips))
     app.add_handler(CommandHandler("emergencia", emergencia))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
-    app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+    app.add_handler(MessageHandler(filters.COMMAND, lambda u,c: u.message.reply_text("Comanda desconeguda")))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
 
