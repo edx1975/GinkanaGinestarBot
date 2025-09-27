@@ -306,30 +306,51 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     equips_data = {}
     for row in records:
         e = row["equip"]
-        equips_data.setdefault(e, {"punts":0,"contestades":0,"correctes":0,"respostes":{}})
+        equips_data.setdefault(e, {
+            "punts": 0,
+            "contestades": 0,
+            "correctes": 0,
+            "respostes": {}
+        })
         equips_data[e]["contestades"] += 1
         equips_data[e]["respostes"][str(row["prova_id"])] = row.get("hora")
         if row["estat"] == "VALIDADA":
             equips_data[e]["punts"] += int(row["punts"])
             equips_data[e]["correctes"] += 1
+
     if not equips_data:
         await update.message.reply_text("No hi ha punts registrats encara.")
         return
-    sorted_equips = sorted(equips_data.items(), key=lambda x: x[1]["punts"], reverse=True)
+
+    # Ordenar per punts
+    sorted_equips = sorted(
+        equips_data.items(),
+        key=lambda x: x[1]["punts"],
+        reverse=True
+    )
+
     msg = "🏆 Classificació:\n\n"
-    for i,(equip,data) in enumerate(sorted_equips,start=1):
+    for i, (equip, data) in enumerate(sorted_equips, start=1):
         base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} ✅)"
-        if all(str(pid) in data["respostes"] for pid in range(1,33)):
-            hores = [
+
+        # --- NOVETAT: si l’equip ha completat el bloc 3 ---
+        # (totes les proves 21–30 contestades)
+        bloc3_complet = all(str(pid) in data["respostes"] for pid in range(21, 31))
+        if bloc3_complet:
+            # Buscar l’hora de l’última resposta del bloc 3
+            hores_bloc3 = [
                 datetime.datetime.strptime(data["respostes"][str(pid)], "%H:%M:%S")
-                for pid in range(1,33)
+                for pid in range(21, 31)
                 if data["respostes"].get(str(pid))
             ]
-            if hores:
-                hora_final = max(hores).strftime("%H:%M:%S")
-                base += f" | Fi: {hora_final}h ⏰"
+            if hores_bloc3:
+                hora_fi_bloc3 = max(hores_bloc3).strftime("%H:%M:%S")
+                base += f" | Fi 30 proves: {hora_fi_bloc3}h ⏰"
+
         msg += base + "\n"
+
     await update.message.reply_text(msg)
+
 
 async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
     equips = carregar_equips()
