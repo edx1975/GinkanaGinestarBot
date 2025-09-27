@@ -351,6 +351,7 @@ def main():
     app.add_handler(CommandHandler("ranking", ranking))
     app.add_handler(CommandHandler("ekips", ekips))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
+    app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
 
