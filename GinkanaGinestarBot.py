@@ -8,6 +8,8 @@ import gspread
 import csv
 from zoneinfo import ZoneInfo
 MADRID_TZ = ZoneInfo("Europe/Madrid")
+# Dins start() o inscriure()
+
 
 # ----------------------------
 # Variables d'entorn
@@ -146,6 +148,57 @@ def validate_answer(prova, resposta):
             return 0, "INCORRECTA"
     return 0, "PENDENT"
 
+def guardar_chat_id(username, chat_id):
+    username = username.lower()
+    usuaris = {}
+    # Carreguem els usuaris existents
+    if os.path.exists("usuaris.csv"):
+        with open("usuaris.csv", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                usuaris[row["chat_id"]] = row["username"]
+
+    # Afegim / actualitzem només si no existeix
+    if str(chat_id) not in usuaris:
+        usuaris[str(chat_id)] = username
+        with open("usuaris.csv", "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["username", "chat_id"])
+            for cid, uname in usuaris.items():
+                writer.writerow([uname, cid])
+
+
+def carregar_chat_ids():
+    usuaris = []
+    if os.path.exists("usuaris.csv"):
+        with open("usuaris.csv", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                usuaris.append(int(row["chat_id"]))
+    return usuaris
+
+async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not os.path.exists(EMERGENCIA_TXT):
+        await update.message.reply_text("ℹ️ No hi ha cap missatge d'emergència definit.")
+        return
+
+    with open(EMERGENCIA_TXT, encoding="utf-8") as f:
+        missatge = f.read().strip()
+
+    chat_ids = carregar_chat_ids()
+    if not chat_ids:
+        await update.message.reply_text("⚠️ No hi ha cap usuari registrat per enviar el missatge d'emergència.")
+        return
+
+    enviats = 0
+    for chat_id in chat_ids:
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=missatge)
+            enviats += 1
+        except Exception as e:
+            print(f"❌ No s'ha pogut enviar a {chat_id}: {e}")
+
+    await update.message.reply_text(f"📢 Missatge d'emergència enviat a {enviats} usuaris.")
 
 # ----------------------------
 # Comandes Telegram
@@ -174,6 +227,8 @@ async def ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg)
 
 async def inscriure(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    guardar_chat_id((user.username or user.first_name).lower(), user.id)
     if len(context.args) < 2:
         await update.message.reply_text("Format: /inscriure NomEquip nom1,nom2,...")
         return
@@ -190,6 +245,7 @@ async def inscriure(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Ja ets portaveu d'un altre equip.")
             return
     guardar_equip(equip, portaveu, jugadors_llista)
+    guardar_chat_id((user.username or user.first_name).lower(), user.id)
     await update.message.reply_text(f"✅ Equip '{equip}' registrat amb portaveu @{portaveu}.")
 
 async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -342,8 +398,6 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 EMERGENCIA_TXT = os.getenv("GINKANA_EMERGENCIA_TXT", "./emergencia.txt")
 
-EMERGENCIA_TXT = os.getenv("GINKANA_EMERGENCIA_TXT", "./emergencia.txt")
-
 async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not os.path.exists(EMERGENCIA_TXT):
         await update.message.reply_text("ℹ️ No hi ha cap missatge d'emergència definit.")
@@ -352,31 +406,22 @@ async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(EMERGENCIA_TXT, encoding="utf-8") as f:
         missatge = f.read().strip()
 
-    equips = carregar_equips()
-
-    # 📩 Llista de destinataris (portaveus + jugadors)
-    destinataris = set()
-    for info in equips.values():
-        if info["portaveu"]:
-            destinataris.add(info["portaveu"])
-        for j in info["jugadors"]:
-            destinataris.add(j.lower())
-
-    # Enviar missatge a cadascun dels usuaris coneguts
-    if not destinataris:
+    chat_ids = carregar_chat_ids()
+    if not chat_ids:
         await update.message.reply_text("⚠️ No hi ha cap usuari registrat per enviar el missatge d'emergència.")
         return
 
     enviats = 0
-    for usuari in destinataris:
+    for chat_id in chat_ids:
         try:
-            # 👇 Pots triar: si tens username, cal posar-li l'@ davant
-            await context.bot.send_message(chat_id=f"@{usuari}", text=missatge)
+            await context.bot.send_message(chat_id=chat_id, text=missatge)
             enviats += 1
         except Exception as e:
-            print(f"❌ No s'ha pogut enviar a {usuari}: {e}")
+            print(f"❌ No s'ha pogut enviar a {chat_id}: {e}")
 
     await update.message.reply_text(f"📢 Missatge d'emergència enviat a {enviats} usuaris.")
+
+
 
 # ----------------------------
 # Main
