@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from typing import Callable, Any, Dict, Tuple, Optional
 
 MADRID_TZ = ZoneInfo("Europe/Madrid")
+MOSTRAR_FI30 = True  # per defecte mostrem l'hora final del bloc 3
 
 # ----------------------------
 # Variables d'entorn
@@ -336,19 +337,14 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} ✅)"
 
         # --- NOVETAT: si l’equip ha completat el bloc 3 ---
-        # (totes les proves 21–30 contestades)
-        # --- NOVETAT: si l’equip ha completat el bloc 3 ---
         bloc3_complet = all(str(pid) in data["respostes"] for pid in range(21, 31))
-        if bloc3_complet:
-            # Treballem directament amb les cadenes
+        if bloc3_complet and MOSTRAR_FI30:
             hores_bloc3 = [data["respostes"][str(pid)]
-                        for pid in range(21, 31)
-                        if data["respostes"].get(str(pid))]
-
+                            for pid in range(21, 31)
+                            if data["respostes"].get(str(pid))]
             if hores_bloc3:
-                hora_fi_bloc3 = max(hores_bloc3)  # ja és el text correcte "HH:MM:SS"
-                base += f" | Fi 30 proves: {hora_fi_bloc3}h ⏰"
-
+                hora_fi_bloc3 = max(hores_bloc3)
+                base += f" | Fi 30 proves {hora_fi_bloc3}⏰"
         msg += base + "\n"
 
     await update.message.reply_text(msg)
@@ -486,6 +482,12 @@ async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             print(f"❌ No s'ha pogut enviar a {chat_id}: {e}")
     await update.message.reply_text(f"📢 Missatge d'emergència enviat a {enviats} usuaris.")
+    
+async def fi30(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global MOSTRAR_FI30
+    MOSTRAR_FI30 = not MOSTRAR_FI30
+    estat = "activat" if MOSTRAR_FI30 else "desactivat"
+    await update.message.reply_text(f"Mostra de l'hora final del bloc 3 {estat}.")
 
 # ----------------------------
 # Main
@@ -511,6 +513,7 @@ def main():
     app.add_handler(CommandHandler("ranking", ranking))
     app.add_handler(CommandHandler("ekips", ekips))
     app.add_handler(CommandHandler("emergencia", emergencia))
+    app.add_handler(CommandHandler("fi30", fi30))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     app.add_handler(MessageHandler(filters.COMMAND, lambda u,c: u.message.reply_text("Comanda desconeguda")))
     print("✅ Bot Ginkana en marxa...")
