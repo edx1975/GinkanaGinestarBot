@@ -335,16 +335,16 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # --- NOVETAT: si l’equip ha completat el bloc 3 ---
         # (totes les proves 21–30 contestades)
+        # --- NOVETAT: si l’equip ha completat el bloc 3 ---
         bloc3_complet = all(str(pid) in data["respostes"] for pid in range(21, 31))
         if bloc3_complet:
-            # Buscar l’hora de l’última resposta del bloc 3
-            hores_bloc3 = [
-                datetime.datetime.strptime(data["respostes"][str(pid)], "%H:%M:%S")
-                for pid in range(21, 31)
-                if data["respostes"].get(str(pid))
-            ]
+            # Treballem directament amb les cadenes
+            hores_bloc3 = [data["respostes"][str(pid)]
+                        for pid in range(21, 31)
+                        if data["respostes"].get(str(pid))]
+
             if hores_bloc3:
-                hora_fi_bloc3 = max(hores_bloc3).strftime("%H:%M:%S")
+                hora_fi_bloc3 = max(hores_bloc3)  # ja és el text correcte "HH:MM:SS"
                 base += f" | Fi 30 proves: {hora_fi_bloc3}h ⏰"
 
         msg += base + "\n"
