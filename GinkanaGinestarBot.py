@@ -169,13 +169,17 @@ def guardar_chat_id(username, chat_id):
 
 
 def carregar_chat_ids():
-    usuaris = []
+    chat_ids = set()
     if os.path.exists("usuaris.csv"):
         with open("usuaris.csv", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                usuaris.append(int(row["chat_id"]))
-    return usuaris
+                try:
+                    chat_ids.add(int(row["chat_id"]))
+                except ValueError:
+                    print(f"⚠️ Chat ID invàlid a usuaris.csv: {row['chat_id']}")
+    return list(chat_ids)
+
 
 async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not os.path.exists(EMERGENCIA_TXT):
