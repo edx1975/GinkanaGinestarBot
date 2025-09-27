@@ -1,4 +1,4 @@
-from dotenv import load_dotenvfrom dotenv import load_dotenv
+from dotenv import load_dotenv
 import os
 load_dotenv()
 import datetime
