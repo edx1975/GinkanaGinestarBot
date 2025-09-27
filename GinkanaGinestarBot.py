@@ -338,6 +338,8 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🙌 Moltes gràcies a tots per participar!\n\n"
             "🐔 Lo Corral AC | Ginestar | 28-09-2025."
         )
+async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
 
 # ----------------------------
 # Main
