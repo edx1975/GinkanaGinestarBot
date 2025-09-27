@@ -2,7 +2,7 @@
 
 
 ➡️ INSCRIPCIÓ
-Per participar, crea un equip i inscriu-lo amb:
+Per participar, crea un equip i inscriu-lo envían un missatge axil:
   /inscriure NomEquip nom1 nom2 nom3 ...
 
 Exemple:
@@ -31,11 +31,6 @@ Exemple:
 - Aneu alerta, perquè les respostes no es poden canviar. 
 - Aquesta instrucció no porta la barra inclinada "/" al davant.
 - No cal donar les respostes en un ordre concret, podeu començar per la que vulgueu.
-
-
-➡️ ESTAT
-Per veure quines proves del vostre bloc encara no heu contestat:
-  /manquen
 
 
 ➡️ RANKING

@@ -1,15 +1,13 @@
 from dotenv import load_dotenv
 import os
-load_dotenv()  # Això llegeix el .env i posa les variables a os.environ
+load_dotenv()
 import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import gspread
-import json
 import csv
 from zoneinfo import ZoneInfo
 MADRID_TZ = ZoneInfo("Europe/Madrid")
-
 
 # ----------------------------
 # Variables d'entorn
@@ -103,7 +101,6 @@ def guardar_equip(equip, portaveu, jugadors_llista):
 def guardar_submission(equip, prova_id, resposta, punts, estat):
     hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M:%S")
     sheet.append_row([equip, prova_id, resposta, punts, estat, hora])
-    # Invalidar cache
     global _cache_records, _cache_time
     _cache_records = None
     _cache_time = None
@@ -163,8 +160,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/ajuda - veure menú d'ajuda\n"
         "/inscriure NomEquip nom1,nom2,nom3 - registrar el teu equip\n"
         "/proves - veure llista de proves\n"
-        "/ranking - veure puntuacions\n"
-        "/manquen - veure proves pendents del teu bloc actual\n\n"
+        "/ranking - veure puntuacions\n\n"
         "📣 Per respondre una prova envia:\n"
         "resposta <numero> <resposta>\n\n"
         "🐔 Una iniciativa de Lo Corral associació cultural amb la col·laboració de lo Grup de Natura lo Margalló \n"
@@ -212,43 +208,16 @@ async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Has d'estar inscrit per veure les proves.")
         return
     bloc = bloc_actual(equip, proves)
+    res = respostes_equip(equip)
     rang = {1: range(1,11),2:range(11,21),3:range(21,31)}[bloc]
-    msg = f"📋 Llista de proves (bloc {bloc}):\n\n"
+    msg = f"📋 Llista de proves pendents (bloc {bloc}):\n\n"
     for pid in rang:
-        if str(pid) in proves:
+        if str(pid) in proves and str(pid) not in res:
             p = proves[str(pid)]
             msg += f"{pid}. {p['titol']}\n{p['descripcio']} - {p['punts']} punts\n\n"
+    if msg.strip() == f"📋 Llista de proves pendents (bloc {bloc}):":
+        msg += "🎉 Totes les proves del bloc actual han estat contestades!"
     await update.message.reply_text(msg)
-
-async def manquen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    proves = carregar_proves()
-    user = update.message.from_user
-    username = (user.username or "").lstrip("@").lower()
-    firstname = (user.first_name or "").lower()
-    equips = carregar_equips()
-    equip = None
-    for e, info in equips.items():
-        if info["portaveu"] in [username, firstname]:
-            equip = e
-            break
-    if not equip:
-        await update.message.reply_text("❌ Has d'estar inscrit.")
-        return
-    res = respostes_equip(equip)
-    if "31" in res:
-        await update.message.reply_text("🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
-            "📊 Trobareu els resultats amb la comanda /ranking\n\n\n\n"
-            "🙌 Moltes gràcies a tots per participar!\n\n"
-            "🐔 Lo Corral associació cultural, Ginestar, 28 de setembre de 2025.")
-        return
-    bloc = bloc_actual(equip, proves)
-    rang = {1: range(1,11),2:range(11,21),3:range(21,31)}[bloc]
-    mancants = [str(pid) for pid in rang if str(pid) not in res and str(pid) in proves]
-    if mancants:
-        await update.message.reply_text(f"❓ Proves pendents al bloc {bloc}: {', '.join(mancants)}")
-    else:
-        await update.message.reply_text(f"🎉 Totes les proves del bloc {bloc} han estat contestades!")
-        await llistar_proves(update, context)
 
 async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     records = get_records()
@@ -257,7 +226,7 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         e = row["equip"]
         equips_data.setdefault(e, {"punts":0,"contestades":0,"correctes":0,"respostes":{}})
         equips_data[e]["contestades"] += 1
-        equips_data[e]["respostes"][str(row["prova_id"])] = row.get("hora")  # hora de cada prova
+        equips_data[e]["respostes"][str(row["prova_id"])] = row.get("hora")
         if row["estat"] == "VALIDADA":
             equips_data[e]["punts"] += int(row["punts"])
             equips_data[e]["correctes"] += 1
@@ -268,7 +237,6 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "🏆 Classificació:\n\n"
     for i,(equip,data) in enumerate(sorted_equips,start=1):
         base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} ✅)"
-        # comprovar si ha contestat totes les 30 primeres proves
         if all(str(pid) in data["respostes"] for pid in range(1,31)):
             hores = [
                 datetime.datetime.strptime(data["respostes"][str(pid)], "%H:%M:%S")
@@ -283,8 +251,7 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
     equips = carregar_equips()
-    records = get_records()  # obté el cache de Google Sheets
-
+    records = get_records()
     equips_list = []
     for equip, info in equips.items():
         punts = sum(
@@ -292,7 +259,6 @@ async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for row in records
             if row["equip"] == equip and row["estat"] == "VALIDADA"
         )
-        # Tot en una sola línia per equip
         equips_list.append({
             "equip": equip,
             "portaveu": info["portaveu"],
@@ -300,15 +266,10 @@ async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "hora": info.get("hora_inscripcio", ""),
             "punts": punts
         })
-
-    # Ordenar per hora d'inscripció
     equips_list.sort(key=lambda x: x["hora"])
-
-    # Missatge amb cada equip en una sola línia
     msg = "📋 Llista d'equips:\n\n"
     for e in equips_list:
         msg += f"{e['equip']} | @{e['portaveu']} | Jugadors: {e['jugadors']} | Hora insc: {e['hora']} | Punts: {e['punts']}\n"
-
     await update.message.reply_text(msg)
 
 ICONS = {
@@ -322,18 +283,15 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text or not text.lower().startswith("resposta"):
         await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
         return
-
     parts = text.split(maxsplit=2)
     if len(parts) < 3:
         await update.message.reply_text("Format: resposta <id> <text>")
         return
-
     prova_id, resposta = parts[1], parts[2]
     proves = carregar_proves()
     if prova_id not in proves:
         await update.message.reply_text("❌ Prova no trobada.")
         return
-
     user = update.message.from_user
     username = (user.username or "").lstrip("@").lower()
     firstname = (user.first_name or "").lower()
@@ -343,23 +301,18 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if info["portaveu"] in [username, firstname]:
             equip = e
             break
-
     if not equip:
         await update.message.reply_text("❌ Només el portaveu pot enviar respostes.")
         return
     if ja_resposta(equip, prova_id):
         await update.message.reply_text(f"⚠️ L'equip '{equip}' ja ha respost la prova {prova_id}.")
         return
-
     bloc_anterior = bloc_actual(equip, proves)
     prova = proves[prova_id]
     punts, estat = validate_answer(prova, resposta)
     guardar_submission(equip, prova_id, resposta, punts, estat)
-
-    # Icona segons l'estat
     icon = ICONS.get(estat, "ℹ️")
     await update.message.reply_text(f"{icon} Resposta registrada: {estat}. Punts: {punts}")
-
     bloc_nou = bloc_actual(equip, proves)
     if bloc_nou == 2 and bloc_anterior == 1:
         await update.message.reply_text(
@@ -371,7 +324,6 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🎉 Ta-ta-ta-xaaaaàn! Gairebé ho teniu! Aquí teniu les últimes instruccions per al tercer bloc:"
         )
         await llistar_proves(update, context)
-
     res = respostes_equip(equip)
     if all(str(i) in res for i in range(21,31)) and "31" not in res:
         await update.message.reply_text(
@@ -387,7 +339,6 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🐔 Lo Corral AC | Ginestar | 28-09-2025."
         )
 
-
 # ----------------------------
 # Main
 # ----------------------------
@@ -397,10 +348,8 @@ def main():
     app.add_handler(CommandHandler("ajuda", ajuda))
     app.add_handler(CommandHandler("inscriure", inscriure))
     app.add_handler(CommandHandler("proves", llistar_proves))
-    app.add_handler(CommandHandler("manquen", manquen))
     app.add_handler(CommandHandler("ranking", ranking))
     app.add_handler(CommandHandler("ekips", ekips))
-
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     print("✅ Bot Ginkana en marxa...")
     app.run_polling()
