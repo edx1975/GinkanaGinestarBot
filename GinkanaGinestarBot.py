@@ -340,6 +340,44 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
 
+EMERGENCIA_TXT = os.getenv("GINKANA_EMERGENCIA_TXT", "./emergencia.txt")
+
+EMERGENCIA_TXT = os.getenv("GINKANA_EMERGENCIA_TXT", "./emergencia.txt")
+
+async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not os.path.exists(EMERGENCIA_TXT):
+        await update.message.reply_text("ℹ️ No hi ha cap missatge d'emergència definit.")
+        return
+
+    with open(EMERGENCIA_TXT, encoding="utf-8") as f:
+        missatge = f.read().strip()
+
+    equips = carregar_equips()
+
+    # 📩 Llista de destinataris (portaveus + jugadors)
+    destinataris = set()
+    for info in equips.values():
+        if info["portaveu"]:
+            destinataris.add(info["portaveu"])
+        for j in info["jugadors"]:
+            destinataris.add(j.lower())
+
+    # Enviar missatge a cadascun dels usuaris coneguts
+    if not destinataris:
+        await update.message.reply_text("⚠️ No hi ha cap usuari registrat per enviar el missatge d'emergència.")
+        return
+
+    enviats = 0
+    for usuari in destinataris:
+        try:
+            # 👇 Pots triar: si tens username, cal posar-li l'@ davant
+            await context.bot.send_message(chat_id=f"@{usuari}", text=missatge)
+            enviats += 1
+        except Exception as e:
+            print(f"❌ No s'ha pogut enviar a {usuari}: {e}")
+
+    await update.message.reply_text(f"📢 Missatge d'emergència enviat a {enviats} usuaris.")
+
 # ----------------------------
 # Main
 # ----------------------------
@@ -351,6 +389,8 @@ def main():
     app.add_handler(CommandHandler("proves", llistar_proves))
     app.add_handler(CommandHandler("ranking", ranking))
     app.add_handler(CommandHandler("ekips", ekips))
+        app.add_handler(CommandHandler("emergencia", emergencia))
+
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resposta_handler))
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     print("✅ Bot Ginkana en marxa...")
