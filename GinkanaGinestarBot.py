@@ -303,6 +303,8 @@ async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     records = get_records()
+    print(records[0]["hora"])
+    print(type(records[0]["hora"]))
     equips_data = {}
     for row in records:
         e = row["equip"]
