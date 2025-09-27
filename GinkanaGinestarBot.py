@@ -99,10 +99,14 @@ def respostes_equip(equip):
 
 def bloc_actual(equip, proves):
     res = respostes_equip(equip)
-    total = len(proves)
+    # Bloc 1: proves 1-10
     if all(str(i) in res for i in range(1, 11)):
+        # Bloc 2: proves 11-20
         if all(str(i) in res for i in range(11, 21)):
-            return 3 if total >= 21 else 2
+            # Bloc 3: proves 21-30
+            if all(str(i) in res for i in range(21, 30)):
+                return 4  # bloc final amb pregunta secreta i final_joc
+            return 3
         return 2
     return 1
 
@@ -112,7 +116,7 @@ def validate_answer(prova, resposta):
     correct_answer = str(prova["resposta"])  # <-- FORÇAR STRING
     if correct_answer == "REVIEW_REQUIRED":
         return 0, "PENDENT"
-    if tipus in ["trivia", "qr", "final_joc"]:
+    if tipus in ["trivia", "qr", "final_joc", "pregunta_secreta"]:
         possibles = [r.strip().lower() for r in correct_answer.split("|")]
         if str(resposta).strip().lower() in possibles:
             return punts, "VALIDADA"
@@ -205,14 +209,27 @@ async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     bloc = bloc_actual(equip, proves)
     res = respostes_equip(equip)
-    rang = {1: range(1,11),2:range(11,21),3:range(21,31)}[bloc]
+    rang = {
+        1: range(1,11),
+        2: range(11,21),
+        3: range(21,31),
+        4: range(31,33)  # 31 = secreta, 32 = final_joc
+    }[bloc]
+    
     msg = f"📋 Llista de proves pendents (bloc {bloc}):\n\n"
     for pid in rang:
         if str(pid) in proves and str(pid) not in res:
             p = proves[str(pid)]
             msg += f"{pid}. {p['titol']}\n{p['descripcio']} - {p['punts']} punts\n\n"
+
     if msg.strip() == f"📋 Llista de proves pendents (bloc {bloc}):":
-        msg += "🎉 Totes les proves del bloc actual han estat contestades!"
+        if bloc == 4 and "31" not in res:
+            msg += "🔐 Pregunta secreta disponible! 🤫"
+        elif bloc == 4 and "32" not in res:
+            msg += "🏁 Prova final de joc disponible!"
+        else:
+            msg += "🎉 Totes les proves del bloc actual han estat contestades!"
+
     await update.message.reply_text(msg)
 
 async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -233,10 +250,10 @@ async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "🏆 Classificació:\n\n"
     for i,(equip,data) in enumerate(sorted_equips,start=1):
         base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} ✅)"
-        if all(str(pid) in data["respostes"] for pid in range(1,31)):
+        if all(str(pid) in data["respostes"] for pid in range(1,33)):
             hores = [
                 datetime.datetime.strptime(data["respostes"][str(pid)], "%H:%M:%S")
-                for pid in range(1,31)
+                for pid in range(1,33)
                 if data["respostes"].get(str(pid))
             ]
             if hores:
@@ -297,12 +314,21 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if ja_resposta(equip, prova_id):
         await update.message.reply_text(f"⚠️ L'equip '{equip}' ja ha respost la prova {prova_id}.")
         return
-    bloc_anterior = bloc_actual(equip, proves)
+
     prova = proves[prova_id]
     punts, estat = validate_answer(prova, resposta)
     guardar_submission(equip, prova_id, resposta, punts, estat)
+    
     icon = {"VALIDADA": "✅","INCORRECTA": "❌","PENDENT": "⏳"}.get(estat, "ℹ️")
-    await update.message.reply_text(f"{icon} Resposta registrada: {estat}. Punts: {punts}")
+    msg = f"{icon} Resposta registrada: {estat}. Punts: {punts}"
+
+    # Missatges especials per prova secreta i final_joc
+    if prova["tipus"] == "pregunta_secreta" and estat == "VALIDADA":
+        msg += "\n🔐 Felicitats! Has desbloquejat la pregunta secreta!"
+    elif prova["tipus"] == "final_joc" and estat == "VALIDADA":
+        msg += "\n🏁 Has acabat la ginkana! 🎉"
+
+    await update.message.reply_text(msg)
 
 # ----------------------------
 # Emergència ara llegeix de Google Sheets
