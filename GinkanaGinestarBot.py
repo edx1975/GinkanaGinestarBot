@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import gspread
 from zoneinfo import ZoneInfo
+from typing import Callable, Any, Dict, Tuple, Optional
 
 MADRID_TZ = ZoneInfo("Europe/Madrid")
 
@@ -20,13 +21,13 @@ if not TELEGRAM_TOKEN:
 GINKANA_PUNTS_SHEET = os.getenv("GINKANA_PUNTS_SHEET", "punts_equips")
 
 # ----------------------------
-# Google Sheets
+# Google Sheets - credencials
 # ----------------------------
 creds_dict = {
     "type": "service_account",
     "project_id": os.getenv("GOOGLE_PROJECT_ID"),
     "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
-    "private_key": os.getenv("GOOGLE_PRIVATE_KEY").replace("\\n", "\n"),
+    "private_key": os.getenv("GOOGLE_PRIVATE_KEY", "").replace("\\n", "\n"),
     "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
     "client_id": os.getenv("GOOGLE_CLIENT_ID"),
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -36,55 +37,140 @@ creds_dict = {
 }
 
 gc = gspread.service_account_from_dict(creds_dict)
-sheet_records = gc.open(GINKANA_PUNTS_SHEET).worksheet("punts_equips")
 
 # ----------------------------
-# Cache Google Sheets
+# Worksheets (obrir una sola vegada)
 # ----------------------------
-_cache_records = None
-_cache_time = None
-_CACHE_TTL = 10  # segons
+# Els objectes worksheet seran assignats a l'inicialitzar el bot
+sheet_records = None
+sheet_proves = None
+sheet_equips = None
+sheet_usuaris = None
+sheet_ajuda = None
+sheet_emergencia = None
 
-def get_records():
-    global _cache_records, _cache_time
-    now = datetime.datetime.now()
-    if _cache_records is None or (now - _cache_time).total_seconds() > _CACHE_TTL:
-        _cache_records = sheet_records.get_all_records()
-        _cache_time = now
-    return _cache_records
+def init_worksheets():
+    global sheet_records, sheet_proves, sheet_equips, sheet_usuaris, sheet_ajuda, sheet_emergencia
+    sh = gc.open(GINKANA_PUNTS_SHEET)
+    sheet_records = sh.worksheet("punts_equips")
+    sheet_proves = sh.worksheet("proves")
+    sheet_equips = sh.worksheet("equips")
+    sheet_usuaris = sh.worksheet("usuaris")
+    sheet_ajuda = sh.worksheet("ajuda")
+    sheet_emergencia = sh.worksheet("emergencia")
 
 # ----------------------------
-# Helpers Google Sheets
+# Cache per worksheet
+# ----------------------------
+# Estratègia: cache_get / cache_invalidate
+_CACHE: Dict[str, Tuple[Any, datetime.datetime, int]] = {}
+# TTLs en segons per cada tipus de dades
+_CACHE_TTLS = {
+    "proves": 3600,       # gairebé fixen
+    "equips": 60,         # canvia amb inscripcions
+    "records": 5,         # molt volàtil
+    "usuaris": 300,       # canvia poc
+    "ajuda": 30,
+    "emergencia": 30
+}
+
+def _now():
+    return datetime.datetime.now(MADRID_TZ)
+
+def cache_get(name: str, loader: Callable[[], Any], ttl_override: Optional[int] = None):
+    """
+    Retorna el valor cachejat o recarrega amb loader().
+    name: clau de cache
+    loader: funció que retorna les dades actuals
+    ttl_override: si es vol un TTL diferent a _CACHE_TTLS
+    """
+    ttl = ttl_override if ttl_override is not None else _CACHE_TTLS.get(name, 10)
+    entry = _CACHE.get(name)
+    if entry:
+        value, ts, entry_ttl = entry
+        age = (_now() - ts).total_seconds()
+        if age <= entry_ttl:
+            return value
+    # recarregar
+    value = loader()
+    _CACHE[name] = (value, _now(), ttl)
+    return value
+
+def cache_invalidate(name: str):
+    if name in _CACHE:
+        del _CACHE[name]
+
+# ----------------------------
+# Helpers Google Sheets (amb cache)
 # ----------------------------
 def carregar_proves():
-    sheet_proves = gc.open(GINKANA_PUNTS_SHEET).worksheet("proves")
-    rows = sheet_proves.get_all_records()
-    proves = {str(int(row["id"])): row for row in rows}
-    return proves
+    def loader():
+        rows = sheet_proves.get_all_records()
+        proves = {str(int(row["id"])): row for row in rows}
+        return proves
+    return cache_get("proves", loader)
 
 def carregar_equips():
-    sheet_equips = gc.open(GINKANA_PUNTS_SHEET).worksheet("equips")
-    rows = sheet_equips.get_all_records()
-    equips = {}
-    for row in rows:
-        equips[row["equip"]] = {
-            "portaveu": row["portaveu"].lstrip("@").lower(),
-            "jugadors": [j.strip() for j in row["jugadors"].split(",") if j.strip()],
-            "hora_inscripcio": row.get("hora_inscripcio", "")
-        }
-    return equips
+    def loader():
+        rows = sheet_equips.get_all_records()
+        equips = {}
+        for row in rows:
+            equips[row["equip"]] = {
+                "portaveu": row["portaveu"].lstrip("@").lower(),
+                "jugadors": [j.strip() for j in row["jugadors"].split(",") if j.strip()],
+                "hora_inscripcio": row.get("hora_inscripcio", "")
+            }
+        return equips
+    return cache_get("equips", loader)
 
+def get_records():
+    def loader():
+        return sheet_records.get_all_records()
+    return cache_get("records", loader)
+
+def carregar_ajuda():
+    def loader():
+        try:
+            return sheet_ajuda.acell("A1").value or "ℹ️ Encara no hi ha ajuda definida."
+        except Exception:
+            return "ℹ️ Encara no hi ha ajuda definida."
+    return cache_get("ajuda", loader)
+
+def carregar_emergencia():
+    def loader():
+        try:
+            return sheet_emergencia.acell("A1").value or "ℹ️ No hi ha cap missatge d'emergència definit."
+        except Exception:
+            return "ℹ️ No hi ha cap missatge d'emergència definit."
+    return cache_get("emergencia", loader)
+
+def carregar_chat_ids():
+    def loader():
+        chat_ids = set()
+        rows = sheet_usuaris.get_all_records()
+        for row in rows:
+            try:
+                chat_ids.add(int(row["chat_id"]))
+            except Exception:
+                print(f"⚠️ Chat ID invàlid a usuaris sheet: {row.get('chat_id')}")
+        return list(chat_ids)
+    return cache_get("usuaris", loader)
+
+# ----------------------------
+# Funcions de guardat (i invalidació de cache)
+# ----------------------------
 def guardar_equip(equip, portaveu, jugadors_llista):
     hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M")
-    sheet_equips = gc.open(GINKANA_PUNTS_SHEET).worksheet("equips")
+    # append a sheet_equips
     sheet_equips.append_row([equip, portaveu.lstrip("@"), ",".join(jugadors_llista), hora])
+    # invalidar cache d'equips (i usuaris no cal)
+    cache_invalidate("equips")
 
 def guardar_submission(equip, prova_id, resposta, punts, estat):
     hora = datetime.datetime.now(MADRID_TZ).strftime("%H:%M:%S")
     sheet_records.append_row([equip, prova_id, resposta, punts, estat, hora])
-    global _cache_records, _cache_time
-    _cache_records = None
-    _cache_time = None
+    # invalidar la cache de records (no recarreguem immediatament)
+    cache_invalidate("records")
 
 def ja_resposta(equip, prova_id):
     records = get_records()
@@ -99,13 +185,10 @@ def respostes_equip(equip):
 
 def bloc_actual(equip, proves):
     res = respostes_equip(equip)
-    # Bloc 1: proves 1-10
     if all(str(i) in res for i in range(1, 11)):
-        # Bloc 2: proves 11-20
         if all(str(i) in res for i in range(11, 21)):
-            # Bloc 3: proves 21-30
             if all(str(i) in res for i in range(21, 30)):
-                return 4  # bloc final amb pregunta secreta i final_joc
+                return 4  # Bloc final amb pregunta secreta i final_joc
             return 3
         return 2
     return 1
@@ -113,7 +196,7 @@ def bloc_actual(equip, proves):
 def validate_answer(prova, resposta):
     tipus = prova["tipus"]
     punts = int(prova["punts"])
-    correct_answer = str(prova["resposta"])  # <-- FORÇAR STRING
+    correct_answer = str(prova["resposta"])
     if correct_answer == "REVIEW_REQUIRED":
         return 0, "PENDENT"
     if tipus in ["trivia", "qr", "final_joc", "pregunta_secreta"]:
@@ -126,29 +209,13 @@ def validate_answer(prova, resposta):
 
 def guardar_chat_id(username, chat_id):
     username = username.lower()
-    sheet_usuaris = gc.open(GINKANA_PUNTS_SHEET).worksheet("usuaris")
-    records = sheet_usuaris.get_all_records()
-    exists = any(int(r["chat_id"]) == chat_id for r in records)
+    # fem una lectura de la fulla usuaris (cache)
+    rows = sheet_usuaris.get_all_records()
+    exists = any(int(r["chat_id"]) == chat_id for r in rows)
     if not exists:
         sheet_usuaris.append_row([username, chat_id])
-
-def carregar_chat_ids():
-    sheet_usuaris = gc.open(GINKANA_PUNTS_SHEET).worksheet("usuaris")
-    chat_ids = set()
-    for row in sheet_usuaris.get_all_records():
-        try:
-            chat_ids.add(int(row["chat_id"]))
-        except ValueError:
-            print(f"⚠️ Chat ID invàlid a usuaris sheet: {row['chat_id']}")
-    return list(chat_ids)
-
-def carregar_ajuda():
-    sheet_ajuda = gc.open(GINKANA_PUNTS_SHEET).worksheet("ajuda")
-    return sheet_ajuda.acell("A1").value or "ℹ️ Encara no hi ha ajuda definida."
-
-def carregar_emergencia():
-    sheet_emergencia = gc.open(GINKANA_PUNTS_SHEET).worksheet("emergencia")
-    return sheet_emergencia.acell("A1").value or "ℹ️ No hi ha cap missatge d'emergència definit."
+        # invalidem cache d'usuaris perquè hi ha nou usuari
+        cache_invalidate("usuaris")
 
 # ----------------------------
 # Comandes Telegram
@@ -209,26 +276,28 @@ async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     bloc = bloc_actual(equip, proves)
     res = respostes_equip(equip)
-    rang = {
+
+    rangs_blocs = {
         1: range(1,11),
         2: range(11,21),
         3: range(21,31),
-        4: range(31,33)  # 31 = secreta, 32 = final_joc
-    }[bloc]
-    
+        4: range(31,33)
+    }
+    rang = rangs_blocs[bloc]
+
     msg = f"📋 Llista de proves pendents (bloc {bloc}):\n\n"
     for pid in rang:
         if str(pid) in proves and str(pid) not in res:
             p = proves[str(pid)]
             msg += f"{pid}. {p['titol']}\n{p['descripcio']} - {p['punts']} punts\n\n"
 
-    if msg.strip() == f"📋 Llista de proves pendents (bloc {bloc}):":
-        if bloc == 4 and "31" not in res:
-            msg += "🔐 Pregunta secreta disponible! 🤫"
-        elif bloc == 4 and "32" not in res:
-            msg += "🏁 Prova final de joc disponible!"
-        else:
-            msg += "🎉 Totes les proves del bloc actual han estat contestades!"
+    # Missatges especials
+    if bloc == 4 and all(str(i) in res for i in range(21,31)) and "31" not in res:
+        msg += "🔐 Pregunta secreta disponible! 🤫"
+    elif bloc == 4 and "32" not in res:
+        msg += "🏁 Prova final de joc disponible!"
+    elif msg.strip() == f"📋 Llista de proves pendents (bloc {bloc}):":
+        msg += "🎉 Totes les proves del bloc actual han estat contestades!"
 
     await update.message.reply_text(msg)
 
@@ -290,48 +359,95 @@ async def resposta_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text or not text.lower().startswith("resposta"):
         await update.message.reply_text("Resposta no entesa. Revisa l' /ajuda")
         return
+
     parts = text.split(maxsplit=2)
     if len(parts) < 3:
         await update.message.reply_text("Format: resposta <id> <text>")
         return
+
     prova_id, resposta = parts[1], parts[2]
     proves = carregar_proves()
     if prova_id not in proves:
         await update.message.reply_text("❌ Prova no trobada.")
         return
-    user = update.message.from_user
-    username = (user.username or "").lstrip("@").lower()
-    firstname = (user.first_name or "").lower()
-    equips = carregar_equips()
-    equip = None
-    for e, info in equips.items():
-        if info["portaveu"] in [username, firstname]:
-            equip = e
-            break
+
+    # --- Identificar equip ---
+    equip = _obtenir_equip_portaveu(update.message.from_user)
     if not equip:
         await update.message.reply_text("❌ Només el portaveu pot enviar respostes.")
         return
+
     if ja_resposta(equip, prova_id):
         await update.message.reply_text(f"⚠️ L'equip '{equip}' ja ha respost la prova {prova_id}.")
         return
 
+    # --- Estat abans ---
+    bloc_anterior = bloc_actual(equip, proves)
+
+    # --- Processar resposta ---
     prova = proves[prova_id]
+    punts, estat = _processar_resposta(equip, prova_id, resposta, prova)
+
+    icon = {"VALIDADA": "✅","INCORRECTA": "❌","PENDENT": "⏳"}.get(estat, "ℹ️")
+    await update.message.reply_text(f"{icon} Resposta registrada: {estat}. Punts: {punts}")
+
+    # --- Estat després ---
+    bloc_nou = bloc_actual(equip, proves)
+    respostes = respostes_equip(equip)
+
+    await _gestionar_canvis_bloc(update, context, bloc_anterior, bloc_nou)
+    await _gestionar_pregunta_secreta(update, respostes)
+    await _gestionar_final_joc(update, prova, estat)
+
+
+def _obtenir_equip_portaveu(user) -> Optional[str]:
+    username = (user.username or "").lstrip("@").lower()
+    firstname = (user.first_name or "").lower()
+    equips = carregar_equips()
+    for e, info in equips.items():
+        if info["portaveu"] in [username, firstname]:
+            return e
+    return None
+
+
+def _processar_resposta(equip: str, prova_id: str, resposta: str, prova: dict):
     punts, estat = validate_answer(prova, resposta)
     guardar_submission(equip, prova_id, resposta, punts, estat)
-    
-    icon = {"VALIDADA": "✅","INCORRECTA": "❌","PENDENT": "⏳"}.get(estat, "ℹ️")
-    msg = f"{icon} Resposta registrada: {estat}. Punts: {punts}"
+    return punts, estat
 
-    # Missatges especials per prova secreta i final_joc
-    if prova["tipus"] == "pregunta_secreta" and estat == "VALIDADA":
-        msg += "\n🔐 Felicitats! Has desbloquejat la pregunta secreta!"
-    elif prova["tipus"] == "final_joc" and estat == "VALIDADA":
-        msg += "\n🏁 Has acabat la ginkana! 🎉"
 
-    await update.message.reply_text(msg)
+async def _gestionar_canvis_bloc(update, context, bloc_anterior: int, bloc_nou: int):
+    if bloc_nou == 2 and bloc_anterior == 1:
+        await update.message.reply_text(
+            "🎺 Ta-xàn! Enhorabona, has completat el primer bloc, aquí tens el segon!"
+        )
+        await llistar_proves(update, context)
+    elif bloc_nou == 3 and bloc_anterior == 2:
+        await update.message.reply_text(
+            "🎉 Ta-ta-ta-xaaaaàn! Gairebé ho teniu! Aquí teniu les últimes instruccions per al tercer bloc:"
+        )
+        await llistar_proves(update, context)
+
+
+async def _gestionar_pregunta_secreta(update, respostes: dict):
+    if all(str(i) in respostes for i in range(21,31)) and "31" not in respostes:
+        await update.message.reply_text(
+            "🎆🎆🎆 TAA-TAA-TAA-XAAAAAN!!! 🎆🎆🎆\n\n"
+            "🏁 FELICITATS!! Heu completat les 30 proves!\n\n"
+            "🏔️ Però encara queda LA PROVA SECRETA: envieu la resposta 31 per completar la Ginkana. La trobareu de 19:01 a 19:02 a la façana principal de l'Església. No feu tard."
+        )
+
+async def _gestionar_final_joc(update, prova: dict, estat: str):
+    if prova["tipus"] == "final_joc" and estat == "VALIDADA":
+        await update.message.reply_text(
+            "🏆 Heu completat la **Primera Gran Ginkana de la Fira del Raure** 🎉\n\n"
+            "📊 Trobareu els resultats definitius a la parada de lo Margalló.\n\n\n\n"
+            "🙌 Moltes gràcies a tots per participar!\n\n"
+            "🐔 Lo Corral AC | Ginestar | 28-09-2025."
+        )
 
 # ----------------------------
-# Emergència ara llegeix de Google Sheets
+# Emergència
 # ----------------------------
 async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
     missatge = carregar_emergencia()
@@ -352,6 +468,18 @@ async def emergencia(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Main
 # ----------------------------
 def main():
+    # Inicialitzem worksheets i cache
+    init_worksheets()
+    # Precarreguem proves i equips a l'inici per evitar la primera crida lenta
+    try:
+        carregar_proves()
+    except Exception as e:
+        print(f"⚠️ Error carregant proves a l'inici: {e}")
+    try:
+        carregar_equips()
+    except Exception as e:
+        print(f"⚠️ Error carregant equips a l'inici: {e}")
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ajuda", ajuda))
