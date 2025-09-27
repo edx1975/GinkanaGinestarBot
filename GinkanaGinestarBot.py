@@ -135,18 +135,17 @@ def bloc_actual(equip, proves):
 def validate_answer(prova, resposta):
     tipus = prova["tipus"]
     punts = int(prova["punts"])
-    if tipus == "final_joc":
-        return punts, "VALIDADA"
     correct_answer = prova["resposta"]
     if correct_answer == "REVIEW_REQUIRED":
         return 0, "PENDENT"
-    if tipus in ["trivia", "qr"]:
+    if tipus in ["trivia", "qr", "final_joc"]:  # 👈 ara final_joc entra aquí
         possibles = [r.strip().lower() for r in correct_answer.split("|")]
         if str(resposta).strip().lower() in possibles:
             return punts, "VALIDADA"
         else:
             return 0, "INCORRECTA"
     return 0, "PENDENT"
+
 
 # ----------------------------
 # Comandes Telegram
