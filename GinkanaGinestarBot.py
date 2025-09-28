@@ -303,51 +303,56 @@ async def llistar_proves(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg)
 
 async def ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    records = get_records()
-    print(records[0]["hora"])
-    print(type(records[0]["hora"]))
-    equips_data = {}
-    for row in records:
-        e = row["equip"]
-        equips_data.setdefault(e, {
-            "punts": 0,
-            "contestades": 0,
-            "correctes": 0,
-            "respostes": {}
-        })
-        equips_data[e]["contestades"] += 1
-        equips_data[e]["respostes"][str(row["prova_id"])] = row.get("hora")
-        if row["estat"] == "VALIDADA":
-            equips_data[e]["punts"] += int(row["punts"])
-            equips_data[e]["correctes"] += 1
+    try:
+        records = get_records()
+        if not records:
+            await update.message.reply_text("⚠️ No hi ha punts registrats encara.")
+            return
 
-    if not equips_data:
-        await update.message.reply_text("No hi ha punts registrats encara.")
-        return
+        equips_data = {}
+        for row in records:
+            e = row["equip"]
+            equips_data.setdefault(e, {
+                "punts": 0,
+                "contestades": 0,
+                "correctes": 0,
+                "respostes": {}
+            })
+            equips_data[e]["contestades"] += 1
+            equips_data[e]["respostes"][str(row["prova_id"])] = row.get("hora")
+            if row["estat"] == "VALIDADA":
+                equips_data[e]["punts"] += int(row["punts"])
+                equips_data[e]["correctes"] += 1
 
-    # Ordenar per punts
-    sorted_equips = sorted(
-        equips_data.items(),
-        key=lambda x: x[1]["punts"],
-        reverse=True
-    )
+        if not equips_data:
+            await update.message.reply_text("⚠️ No hi ha punts registrats encara.")
+            return
 
-    msg = "🏆 Classificació:\n\n"
-    for i, (equip, data) in enumerate(sorted_equips, start=1):
-        base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} ✅)"
+        # Ordenar equips per punts
+        sorted_equips = sorted(
+            equips_data.items(),
+            key=lambda x: x[1]["punts"],
+            reverse=True
+        )
 
-        # --- NOVETAT: si l’equip ha completat el bloc 3 ---
-        bloc3_complet = all(str(pid) in data["respostes"] for pid in range(21, 31))
-        if bloc3_complet and MOSTRAR_FI30:
-            hores_bloc3 = [data["respostes"][str(pid)]
-                            for pid in range(21, 31)
-                            if data["respostes"].get(str(pid))]
-            if hores_bloc3:
-                hora_fi_bloc3 = max(hores_bloc3)
-                base += f" | Fi 30 proves {hora_fi_bloc3}⏰"
-        msg += base + "\n"
+        msg = "🏆 Classificació:\n\n"
+        for i, (equip, data) in enumerate(sorted_equips, start=1):
+            base = f"{i}. {equip} - {data['punts']} punts ({data['correctes']}/{data['contestades']} ✅)"
 
-    await update.message.reply_text(msg)
+            # Mostrar hora final del bloc 3 si l’equip ha completat el bloc 3
+            bloc3_complet = all(str(pid) in data["respostes"] for pid in range(21, 31))
+            if bloc3_complet and MOSTRAR_FI30:
+                hores_bloc3 = [data["respostes"][str(pid)] for pid in range(21, 31) if data["respostes"].get(str(pid))]
+                if hores_bloc3:
+                    hora_fi_bloc3 = max(hores_bloc3)
+                    base += f" | Fi 30 proves {hora_fi_bloc3}⏰"
+            msg += base + "\n"
+
+        await update.message.reply_text(msg)
+
+    except Exception as e:
+        await update.message.reply_text("❌ Ha ocorregut un error generant el ranking.")
+        print(f"Error al handler ranking: {e}")
 
 
 async def ekips(update: Update, context: ContextTypes.DEFAULT_TYPE):
